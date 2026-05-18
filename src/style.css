@@ -1155,7 +1155,7 @@ body::after {
   aspect-ratio: 1 / 1;
   width: 100%;
   background: var(--surface);
-  border: 2px solid var(--sdk-box);
+  border: 3px solid var(--sdk-box);
   border-radius: var(--rad);
   overflow: hidden;
 }
@@ -1182,11 +1182,11 @@ body::after {
 /* thicker 3×3 box separators (skip the outermost — the grid frame
    already draws those). */
 .sdk-cell:nth-child(3n):not(:nth-child(9n)) {
-  border-right: 2px solid var(--sdk-box);
+  border-right: 3px solid var(--sdk-box);
 }
-.sdk-cell:nth-child(n + 19):nth-child(-n + 27),
-.sdk-cell:nth-child(n + 46):nth-child(-n + 54) {
-  border-top: 2px solid var(--sdk-box);
+.sdk-cell:nth-child(n + 28):nth-child(-n + 36),
+.sdk-cell:nth-child(n + 55):nth-child(-n + 63) {
+  border-top: 3px solid var(--sdk-box);
 }
 
 .sdk-cell[data-given="true"] {
