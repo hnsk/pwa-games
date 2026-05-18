@@ -30,6 +30,7 @@ import {
   type Move,
   type Suit,
 } from "./logic.ts";
+import { cardFace } from "./cards.ts";
 import { meta } from "./meta.ts";
 import type { GameContext, GameModule } from "../types.ts";
 
@@ -39,14 +40,6 @@ const SUIT_GLYPH: Record<Suit, string> = {
   D: "♦", // ♦
   C: "♣", // ♣
 };
-
-function rankLabel(rank: number): string {
-  if (rank === 1) return "A";
-  if (rank === 11) return "J";
-  if (rank === 12) return "Q";
-  if (rank === 13) return "K";
-  return String(rank);
-}
 
 /** Optional deterministic seed from the route (`#/g/klondike?seed=42`),
  *  so E2E can reach a repeatable deal. Absent → time-seeded. */
@@ -78,8 +71,14 @@ let elapsed = 0;
 let timerId: number | null = null;
 let autoId: number | null = null;
 let won = false;
+// render() rebuilds the board on every move; the deal cascade must run
+// ONLY on a fresh deal, not on each rebuild (otherwise every move looks
+// like a full-screen refresh). Set on deal, consumed by the next render.
+let dealAnim = false;
 
 let boardEl: HTMLElement;
+let winEl: HTMLElement;
+let winSubEl: HTMLElement;
 let modeEl: HTMLElement;
 let timerEl: HTMLElement;
 let bestEl: HTMLElement;
@@ -104,6 +103,11 @@ interface Drag {
 }
 
 let drag: Drag | null = null;
+
+// Touch fires no reliable `dblclick`, so a double-tap is detected here:
+// two taps on the same card within this window → send to foundation.
+let lastTap: { id: string; t: number } | null = null;
+const DOUBLE_TAP_MS = 320;
 
 /** A face-up, no-face-down board the auto-complete loop solves at once
  *  (same shape as the @unit autoStep fixture). Test hook only. */
@@ -133,6 +137,7 @@ function solveState(): GameState {
 }
 
 function freshDeal(): void {
+  dealAnim = true; // next render animates the deal cascade once
   if (solveLayout) {
     state = solveState();
     return;
@@ -157,13 +162,9 @@ function buildCard(card: Card): HTMLElement {
   if (card.suit === "H" || card.suit === "D") {
     el.classList.add("sol-card--red");
   }
-  const corner = document.createElement("span");
-  corner.className = "sol-card__corner";
-  corner.textContent = rankLabel(card.rank) + SUIT_GLYPH[card.suit];
-  const pip = document.createElement("span");
-  pip.className = "sol-card__pip";
-  pip.textContent = SUIT_GLYPH[card.suit];
-  el.append(corner, pip);
+  // Real card art: a single inline SVG with everything at fixed
+  // coordinates (cards.ts). No CSS-positioned glyphs → nothing overlaps.
+  el.appendChild(cardFace(card));
   return el;
 }
 
@@ -176,30 +177,10 @@ function buildSlot(cls: string): HTMLElement {
 function render(): void {
   boardEl.replaceChildren();
 
-  // top row: 4 foundations · spacer · stock · waste
+  // top row, conventional Klondike order: stock · waste · gap · 4
+  // foundations (the deck/draw is left, suits build at the right).
   const top = document.createElement("div");
   top.className = "sol-top";
-
-  for (const suit of SUITS) {
-    const f = buildSlot("sol-foundation");
-    f.dataset.pile = "foundation";
-    f.dataset.suit = suit;
-    const pile = state.foundations[suit];
-    const t = topOf(pile);
-    if (t) {
-      f.appendChild(buildCard(t));
-    } else {
-      const ghost = document.createElement("span");
-      ghost.className = "sol-foundation__hint";
-      ghost.textContent = SUIT_GLYPH[suit];
-      f.appendChild(ghost);
-    }
-    top.appendChild(f);
-  }
-
-  const spacer = document.createElement("div");
-  spacer.className = "sol-spacer";
-  top.appendChild(spacer);
 
   const stock = buildSlot("sol-stock");
   stock.dataset.pile = "stock";
@@ -233,11 +214,33 @@ function render(): void {
   });
   top.appendChild(waste);
 
+  const spacer = document.createElement("div");
+  spacer.className = "sol-spacer";
+  top.appendChild(spacer);
+
+  for (const suit of SUITS) {
+    const f = buildSlot("sol-foundation");
+    f.dataset.pile = "foundation";
+    f.dataset.suit = suit;
+    const pile = state.foundations[suit];
+    const t = topOf(pile);
+    if (t) {
+      f.appendChild(buildCard(t));
+    } else {
+      const ghost = document.createElement("span");
+      ghost.className = "sol-foundation__hint";
+      ghost.textContent = SUIT_GLYPH[suit];
+      f.appendChild(ghost);
+    }
+    top.appendChild(f);
+  }
+
   boardEl.appendChild(top);
 
   // tableau: 7 columns
   const tab = document.createElement("div");
-  tab.className = "sol-tableau";
+  tab.className = dealAnim ? "sol-tableau sol-tableau--deal" : "sol-tableau";
+  dealAnim = false; // one-shot: subsequent move re-renders don't animate
   state.tableau.forEach((pile, col) => {
     const c = document.createElement("div");
     c.className = "sol-col";
@@ -257,6 +260,10 @@ function render(): void {
     tab.appendChild(c);
   });
   boardEl.appendChild(tab);
+
+  // Re-attach the win overlay last so it survives the full rebuild and
+  // the `.sol-board[data-won] .sol-win` selector still resolves.
+  boardEl.appendChild(winEl);
 }
 
 // ---- timer + best time ---------------------------------------------
@@ -277,6 +284,7 @@ function startTimer(): void {
   timerId = window.setInterval(() => {
     elapsed += 1;
     renderTimer();
+    saveGame(); // persist elapsed so a reopen resumes the clock
   }, 1000);
 }
 
@@ -310,6 +318,50 @@ function recordBest(): void {
   renderBest();
 }
 
+// ---- saved game (resume across navigation / PWA reopen) -------------
+
+const SAVE_KEY = "save";
+
+interface Saved {
+  state: GameState;
+  elapsed: number;
+  drawCount: 1 | 3;
+}
+
+/** Persist the in-progress game. Skipped for deterministic `?seed=` /
+ *  `?solve=1` demos (they must stay reproducible and not bleed a resume
+ *  into the next visit). A finished game is cleared, not saved, so a
+ *  reopen starts fresh. */
+function saveGame(): void {
+  if (seed !== null || solveLayout) return;
+  if (won) {
+    ctx.storage.remove(SAVE_KEY);
+    return;
+  }
+  ctx.storage.set<Saved>(SAVE_KEY, { state, elapsed, drawCount });
+}
+
+function clearGame(): void {
+  ctx.storage.remove(SAVE_KEY);
+}
+
+/** A previously saved game, validated just enough to trust the shape
+ *  (a 7-pile tableau with the four foundations). */
+function loadGame(): Saved | null {
+  const s = ctx.storage.get<Saved>(SAVE_KEY);
+  if (
+    !s ||
+    !s.state ||
+    !Array.isArray(s.state.tableau) ||
+    s.state.tableau.length !== 7 ||
+    !s.state.foundations ||
+    (s.drawCount !== 1 && s.drawCount !== 3)
+  ) {
+    return null;
+  }
+  return s;
+}
+
 // ---- auto-complete --------------------------------------------------
 
 function stopAuto(): void {
@@ -331,6 +383,7 @@ function autoTick(): void {
   state = step.state;
   render();
   if (isWon(state)) finishWin();
+  else saveGame();
 }
 
 function maybeAutoComplete(): void {
@@ -345,6 +398,7 @@ function finishWin(): void {
   stopAuto();
   stopTimer();
   recordBest();
+  clearGame(); // game over → next open starts fresh
   updateChrome();
 }
 
@@ -353,6 +407,11 @@ function finishWin(): void {
 function updateChrome(): void {
   statusEl.textContent = won ? `You win!  ${formatTime(elapsed)}` : "";
   boardEl.dataset.won = won ? "true" : "false";
+  if (won) {
+    const b = ctx.storage.get<Best>(bestKey());
+    const best = b ? formatTime(b.seconds) : formatTime(elapsed);
+    winSubEl.textContent = `Time ${formatTime(elapsed)} · Best ${best}`;
+  }
   autoBtn.hidden = won || autoId !== null || !canAutoComplete(state);
 }
 
@@ -377,6 +436,7 @@ function commit(move: Move): boolean {
   state = next;
   render();
   afterMove();
+  saveGame();
   return true;
 }
 
@@ -505,7 +565,26 @@ function onPointerUp(e: PointerEvent): void {
   if (!drag) return;
   const d = drag;
   drag = null;
-  if (!d.started) return; // a tap, not a drag — dblclick handles it
+  if (!d.started) {
+    // A tap (no drag). Detect a double-tap on the same card → its
+    // foundation; `dblclick` doesn't fire on touch.
+    const cardEl = (e.target as HTMLElement).closest<HTMLElement>(
+      ".sol-card",
+    );
+    if (!cardEl || cardEl.dataset.faceup !== "true") {
+      lastTap = null;
+      return;
+    }
+    const id = cardEl.dataset.id!;
+    const now = e.timeStamp;
+    if (lastTap && lastTap.id === id && now - lastTap.t < DOUBLE_TAP_MS) {
+      lastTap = null;
+      sendToFoundation(cardEl);
+    } else {
+      lastTap = { id, t: now };
+    }
+    return;
+  }
 
   d.ghost?.remove();
   const under = document.elementFromPoint(e.clientX, e.clientY) as
@@ -556,6 +635,7 @@ function resetRound(): void {
   renderTimer();
   renderBest();
   updateChrome();
+  saveGame(); // persist the new deal so a reopen resumes it
   maybeAutoComplete();
 }
 
@@ -590,12 +670,21 @@ const klondike: GameModule = {
     ctx = context;
     seed = parseSeed();
     solveLayout = parseSolve();
-    drawCount = 3;
-    elapsed = 0;
     won = false;
     timerId = null;
     autoId = null;
-    freshDeal();
+    // Resume a saved game (unless this is a deterministic seed/solve
+    // demo). Otherwise deal fresh.
+    const saved = seed === null && !solveLayout ? loadGame() : null;
+    if (saved) {
+      state = saved.state;
+      elapsed = saved.elapsed;
+      drawCount = saved.drawCount;
+    } else {
+      drawCount = 3;
+      elapsed = 0;
+      freshDeal();
+    }
     controller = new AbortController();
     const { signal } = controller;
 
@@ -605,15 +694,9 @@ const klondike: GameModule = {
     const main = document.createElement("main");
     main.className = "shell-main sol";
 
-    const lead = document.createElement("div");
-    lead.className = "menu__lead";
-    const kicker = document.createElement("p");
-    kicker.className = "menu__kicker";
-    kicker.textContent = "Solitaire";
-    const head = document.createElement("h2");
-    head.className = "menu__head";
-    head.textContent = meta.title;
-    lead.append(kicker, head);
+    const lead = document.createElement("h2");
+    lead.className = "sol-title";
+    lead.textContent = meta.title;
 
     const bar = document.createElement("div");
     bar.className = "sol-bar";
@@ -633,6 +716,15 @@ const klondike: GameModule = {
     boardEl = document.createElement("div");
     boardEl.className = "sol-board";
 
+    winEl = document.createElement("div");
+    winEl.className = "sol-win";
+    const winTitle = document.createElement("p");
+    winTitle.className = "sol-win__title";
+    winTitle.textContent = "You win";
+    winSubEl = document.createElement("p");
+    winSubEl.className = "sol-win__sub";
+    winEl.append(winTitle, winSubEl);
+
     const controls = document.createElement("div");
     controls.className = "ttt-controls";
     autoBtn = button("Auto-complete", "ttt-btn", maybeAutoComplete, signal);
@@ -649,7 +741,9 @@ const klondike: GameModule = {
       ),
     );
 
-    main.append(lead, bar, boardEl, controls);
+    // Title, then the full-bleed table, then the HUD bar (mode/timer/
+    // best) below it, then controls.
+    main.append(lead, boardEl, bar, controls);
     el.appendChild(main);
 
     // Delegated input — one set of listeners for the whole board, all
@@ -659,13 +753,27 @@ const klondike: GameModule = {
     window.addEventListener("pointerup", onPointerUp, { signal });
     boardEl.addEventListener("click", onClick, { signal });
     boardEl.addEventListener("dblclick", onDblClick, { signal });
+    // Closing/backgrounding the PWA or tab fires no unmount(); capture
+    // the latest state (incl. elapsed) on pagehide too.
+    window.addEventListener("pagehide", saveGame, { signal });
+    document.addEventListener(
+      "visibilitychange",
+      () => {
+        if (document.visibilityState === "hidden") saveGame();
+      },
+      { signal },
+    );
 
     render();
     updateChrome();
+    // Resumed mid-game (clock already ran) → keep it going; a saved but
+    // un-played deal still waits for the first move like a fresh one.
+    if (saved && !won && elapsed > 0) startTimer();
     maybeAutoComplete(); // ?solve=1 layout auto-runs immediately
   },
 
   unmount(): void {
+    saveGame(); // in-app navigation away → keep the game resumable
     controller?.abort();
     controller = null;
     stopTimer();
