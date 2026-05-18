@@ -194,19 +194,30 @@ Second game. Pure, immutable rules module (no DOM/storage) so the
 
 ## Epic 9: Timer, best time, auto-complete + E2E + verification
 
-- [ ] Timer (`M:SS`, starts on first move, stops on win/unmount);
+- [x] Timer (`M:SS`, starts on first move, stops on win/unmount);
       per-mode best time persisted (`best-1`/`best-3` via
-      `ctx.storage`), shown + updated on win.
-- [ ] Auto-complete: auto-run `autoStep` loop when `canAutoComplete`
+      `ctx.storage`), shown + updated on win. (`.sol-bar` now holds
+      mode/timer/best/status spans; `startTimer` guarded so the first
+      move — incl. an auto step — starts the 1 s interval; `recordBest`
+      writes `{seconds,date}` only if faster/none.)
+- [x] Auto-complete: auto-run `autoStep` loop when `canAutoComplete`
       (no per-card clicking) + manual button fallback; interval
-      cleared on unmount/new game.
-- [ ] `tests/klondike.spec.ts` `@e2e @klondike`: board renders;
+      cleared on unmount/new game. (`maybeAutoComplete` → 120 ms
+      `setInterval` of `autoStep`; `finishWin` stops timer+loop,
+      records best; hidden "Auto-complete" button shown only when
+      `canAutoComplete && !won`. `?solve=1` test hook deals an
+      already-face-up auto-completable board — a normal deal always
+      has face-down cards so can never auto-complete on mount.)
+- [x] `tests/klondike.spec.ts` `@e2e @klondike`: board renders;
       stock click → waste grows by draw count; draw-mode toggle
       changes count; double-tap an Ace → foundation; timer
       increments; seeded deal → auto-complete finishes → win → best
-      time persists across reload; New game resets.
-- [ ] `dc-test --full` + `--ci` green; commit; update
-      `TODO.md`+`NEXT.md`.
+      time persists across reload; New game resets. (7 `@e2e` cases;
+      Ace-top seed found via the imported pure logic, no magic number.)
+- [x] `dc-test --full` + `--ci` green; commit; update
+      `TODO.md`+`NEXT.md`. (full 30/30 run 20260518-112946-test; ci
+      30/30 run 20260518-113004-test-ci; build green —
+      klondike-Co5zMur8.js 10.63 kB, precache 22.)
 
 <!--
 WASM games are deferred (plan §Deferred): no Rust toolchain /

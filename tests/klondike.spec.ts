@@ -159,6 +159,116 @@ test("autoStep drives a face-up board to a win @unit @klondike", () => {
   expect(autoStep(state)).toBeNull(); // nothing left once won
 });
 
+// ---- @e2e: the mounted GameModule driven in a real browser ---------
+// Timer, best-time and the auto-complete loop are Epic 9. `?solve=1` is
+// a documented test hook (index.ts) dealing an already-face-up,
+// trivially auto-completable board — a normal deal always has face-down
+// cards so it can never auto-complete on mount.
+
+/** Smallest seed whose deal exposes an Ace as a tableau column top, so
+ *  the double-tap→foundation case is deterministic without hardcoding a
+ *  magic number (reuses the same pure logic the @unit tier covers). */
+function aceTopSeed(): { seed: number; col: number; id: string } {
+  for (let seed = 0; seed < 5000; seed++) {
+    const g = deal(shuffle(makeDeck(), mulberry32(seed)), 3);
+    for (let col = 0; col < g.tableau.length; col++) {
+      const top = g.tableau[col][g.tableau[col].length - 1];
+      if (top.faceUp && top.rank === 1) {
+        return { seed, col, id: top.id };
+      }
+    }
+  }
+  throw new Error("no Ace-top seed found");
+}
+
+test("board renders: 7 columns + 4 foundations @e2e @klondike", async ({
+  page,
+}) => {
+  await page.goto("/#/g/klondike?seed=1");
+  await expect(page.locator(".sol-board")).toBeVisible();
+  await expect(page.locator(".sol-col")).toHaveCount(7);
+  await expect(page.locator(".sol-foundation")).toHaveCount(4);
+  await expect(page.locator(".sol-mode")).toHaveText("Draw 3");
+  await expect(page.locator(".sol-timer")).toHaveText("0:00");
+});
+
+test("stock click draws drawCount cards; toggle changes it @e2e @klondike", async ({
+  page,
+}) => {
+  await page.goto("/#/g/klondike?seed=1");
+  await expect(page.locator(".sol-board")).toBeVisible();
+
+  // Draw 3 (default): one stock click fans 3 cards into the waste.
+  await page.locator('[data-action="stock"]').click();
+  await expect(page.locator(".sol-waste .sol-card")).toHaveCount(3);
+
+  // Toggle → Draw 1 (also redeals); one click now yields a single card.
+  await page.getByRole("button", { name: "Draw 3 / 1" }).click();
+  await expect(page.locator(".sol-mode")).toHaveText("Draw 1");
+  await page.locator('[data-action="stock"]').click();
+  await expect(page.locator(".sol-waste .sol-card")).toHaveCount(1);
+});
+
+test("double-tap an Ace sends it to its foundation @e2e @klondike", async ({
+  page,
+}) => {
+  const { seed, id } = aceTopSeed();
+  await page.goto(`/#/g/klondike?seed=${seed}`);
+  await expect(page.locator(".sol-board")).toBeVisible();
+
+  const suit = id[0];
+  await page.locator(`.sol-card[data-id="${id}"]`).dblclick();
+  await expect(
+    page.locator(`.sol-foundation[data-suit="${suit}"] .sol-card[data-id="${id}"]`),
+  ).toBeVisible();
+});
+
+test("timer starts on first move and ticks @e2e @klondike", async ({
+  page,
+}) => {
+  await page.goto("/#/g/klondike?seed=1");
+  await expect(page.locator(".sol-timer")).toHaveText("0:00");
+  await page.locator('[data-action="stock"]').click(); // first move
+  await expect(page.locator(".sol-timer")).not.toHaveText("0:00", {
+    timeout: 3000,
+  });
+});
+
+test("auto-complete finishes a solved deal → win → best persists @e2e @klondike", async ({
+  page,
+}) => {
+  await page.goto("/#/g/klondike?solve=1");
+  await expect(page.locator(".sol-board")).toBeVisible();
+
+  // Auto-run flies all 52 cards home (~120 ms/step).
+  await expect(page.locator('.sol-board[data-won="true"]')).toBeVisible({
+    timeout: 15000,
+  });
+  await expect(page.locator(".sol-status")).toContainText("You win!");
+  const best = await page.locator(".sol-best").textContent();
+  expect(best).not.toBe("Best —");
+
+  // Reload: best time is read back from storage on mount (before the
+  // second auto-run can touch it) → it survived the reload.
+  await page.goto("/#/g/klondike?solve=1");
+  await expect(page.locator(".sol-best")).not.toHaveText("Best —");
+});
+
+test("New game resets the timer and clears the win @e2e @klondike", async ({
+  page,
+}) => {
+  await page.goto("/#/g/klondike?seed=1");
+  await page.locator('[data-action="stock"]').click(); // start the timer
+  await expect(page.locator(".sol-timer")).not.toHaveText("0:00", {
+    timeout: 3000,
+  });
+
+  await page.getByRole("button", { name: "New game" }).click();
+  await expect(page.locator(".sol-timer")).toHaveText("0:00");
+  await expect(page.locator(".sol-status")).toHaveText("");
+  await expect(page.locator(".sol-board")).toBeVisible();
+});
+
 test("canAutoComplete only when no card is face-down @unit @klondike", () => {
   expect(canAutoComplete(deal(makeDeck(), 3))).toBe(false); // has face-down
   const won: GameState = {

@@ -1,20 +1,25 @@
 // Klondike GameModule (plan §UI). The shell hands us a cleared `#app`
 // and a namespaced storage; we own all state + DOM. Pure rules live in
-// logic.ts — this file is render + input only. Every listener goes
-// through ONE AbortController so unmount() is a single abort (no leaked
-// pointer handlers across navigations).
+// logic.ts — this file is render + input + timing only. Every listener
+// goes through ONE AbortController so unmount() is a single abort (no
+// leaked pointer handlers across navigations); timers/intervals are
+// tracked and cleared alongside it.
 //
-// Epic 8 scope: board render, pointer drag-and-drop (mouse + touch),
+// Epic 8: board render, pointer drag-and-drop (mouse + touch),
 // double-tap → foundation, stock draw/recycle, New game / Draw-mode
-// toggle / Back, deterministic `?seed=` hook. Timer, best-time and
-// auto-complete are Epic 9 and are intentionally NOT wired here.
+// toggle / Back, deterministic `?seed=` hook.
+// Epic 9: play timer (M:SS), per-mode persisted best time, and an
+// auto-complete loop once the deal has no face-down card.
 
 import { createHeader } from "../../ui/header.ts";
 import {
   applyMove,
+  autoStep,
+  canAutoComplete,
   deal,
   foundationTargetFor,
   isMovableRun,
+  isWon,
   makeDeck,
   mulberry32,
   shuffle,
@@ -44,21 +49,42 @@ function rankLabel(rank: number): string {
 }
 
 /** Optional deterministic seed from the route (`#/g/klondike?seed=42`),
- *  so E2E (Epic 9) can reach a repeatable deal. Absent → time-seeded. */
+ *  so E2E can reach a repeatable deal. Absent → time-seeded. */
 function parseSeed(): number | null {
   const m = /[?&]seed=(-?\d+)/.exec(location.hash);
   return m ? Number(m[1]) >>> 0 : null;
 }
 
+/** Test-only hook: `#/g/klondike?solve=1` deals an already-face-up,
+ *  trivially auto-completable board (4 suit columns K→A, top = Ace,
+ *  empty stock/waste). A normal `deal()` always has face-down cards so
+ *  it can never be `canAutoComplete` on mount — this lets E2E exercise
+ *  the auto-complete → win → best-time path deterministically and fast
+ *  without playing out a full game. Production deals ignore it. */
+function parseSolve(): boolean {
+  return /[?&]solve=1\b/.test(location.hash);
+}
+
 // Module-scope state: only one game mounts at a time and unmount()
 // abandons it, so mount() reinitialises everything below.
 let state: GameState;
+let ctx: GameContext;
 let seed: number | null = null;
+let solveLayout = false;
 let drawCount: 1 | 3 = 3;
 let controller: AbortController | null = null;
 
+let elapsed = 0;
+let timerId: number | null = null;
+let autoId: number | null = null;
+let won = false;
+
 let boardEl: HTMLElement;
 let modeEl: HTMLElement;
+let timerEl: HTMLElement;
+let bestEl: HTMLElement;
+let statusEl: HTMLElement;
+let autoBtn: HTMLButtonElement;
 
 interface DragSource {
   pile: "waste" | "tableau";
@@ -79,7 +105,38 @@ interface Drag {
 
 let drag: Drag | null = null;
 
+/** A face-up, no-face-down board the auto-complete loop solves at once
+ *  (same shape as the @unit autoStep fixture). Test hook only. */
+function solveState(): GameState {
+  const suitPile = (s: Suit): Card[] =>
+    Array.from({ length: 13 }, (_, i) => ({
+      id: `${s}${13 - i}`,
+      suit: s,
+      rank: 13 - i,
+      faceUp: true,
+    }));
+  return {
+    tableau: [
+      suitPile("S"),
+      suitPile("H"),
+      suitPile("D"),
+      suitPile("C"),
+      [],
+      [],
+      [],
+    ],
+    stock: [],
+    waste: [],
+    foundations: { S: [], H: [], D: [], C: [] },
+    drawCount,
+  };
+}
+
 function freshDeal(): void {
+  if (solveLayout) {
+    state = solveState();
+    return;
+  }
   const s = seed ?? ((Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0);
   state = deal(shuffle(makeDeck(), mulberry32(s)), drawCount);
 }
@@ -202,13 +259,124 @@ function render(): void {
   boardEl.appendChild(tab);
 }
 
+// ---- timer + best time ---------------------------------------------
+
+function formatTime(s: number): string {
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function renderTimer(): void {
+  timerEl.textContent = formatTime(elapsed);
+}
+
+/** First successful move (incl. an auto-complete step) starts it;
+ *  guarded so repeated calls are a no-op. Stopped on win/unmount. */
+function startTimer(): void {
+  if (timerId !== null || won) return;
+  timerId = window.setInterval(() => {
+    elapsed += 1;
+    renderTimer();
+  }, 1000);
+}
+
+function stopTimer(): void {
+  if (timerId !== null) {
+    clearInterval(timerId);
+    timerId = null;
+  }
+}
+
+interface Best {
+  seconds: number;
+  date: number;
+}
+
+/** Per-mode key so draw-1 and draw-3 keep separate records. */
+function bestKey(): string {
+  return `best-${drawCount}`;
+}
+
+function renderBest(): void {
+  const b = ctx.storage.get<Best>(bestKey());
+  bestEl.textContent = b ? `Best ${formatTime(b.seconds)}` : "Best —";
+}
+
+function recordBest(): void {
+  const prev = ctx.storage.get<Best>(bestKey());
+  if (!prev || elapsed < prev.seconds) {
+    ctx.storage.set<Best>(bestKey(), { seconds: elapsed, date: Date.now() });
+  }
+  renderBest();
+}
+
+// ---- auto-complete --------------------------------------------------
+
+function stopAuto(): void {
+  if (autoId !== null) {
+    clearInterval(autoId);
+    autoId = null;
+  }
+}
+
+/** One autoStep per tick (~120 ms) so cards visibly fly home, then
+ *  finishWin() once isWon. Drives state directly (not via commit) to
+ *  avoid re-entering the auto-complete check. */
+function autoTick(): void {
+  const step = autoStep(state);
+  if (!step) {
+    stopAuto();
+    return;
+  }
+  state = step.state;
+  render();
+  if (isWon(state)) finishWin();
+}
+
+function maybeAutoComplete(): void {
+  if (won || autoId !== null || !canAutoComplete(state)) return;
+  startTimer(); // auto moves are play time
+  autoId = window.setInterval(autoTick, 120);
+  updateChrome();
+}
+
+function finishWin(): void {
+  won = true;
+  stopAuto();
+  stopTimer();
+  recordBest();
+  updateChrome();
+}
+
+/** Status text + auto-complete button visibility, recomputed after
+ *  every move / state reset. */
+function updateChrome(): void {
+  statusEl.textContent = won ? `You win!  ${formatTime(elapsed)}` : "";
+  boardEl.dataset.won = won ? "true" : "false";
+  autoBtn.hidden = won || autoId !== null || !canAutoComplete(state);
+}
+
 // ---- moves ----------------------------------------------------------
+
+/** Post-move hook for player moves: start the clock on the first one,
+ *  detect a win, kick off auto-complete once nothing is face-down. */
+function afterMove(): void {
+  if (won) return;
+  startTimer();
+  if (isWon(state)) {
+    finishWin();
+    return;
+  }
+  maybeAutoComplete();
+  updateChrome();
+}
 
 function commit(move: Move): boolean {
   const next = applyMove(state, move);
   if (!next) return false;
   state = next;
   render();
+  afterMove();
   return true;
 }
 
@@ -372,16 +540,30 @@ function setMode(): void {
   modeEl.textContent = `Draw ${drawCount}`;
 }
 
-function newGame(): void {
+/** Shared reset for New game / Draw-mode toggle: stop the round's
+ *  timer + auto loop, redeal, then re-show the (mode-specific) best
+ *  and re-arm auto-complete (for the ?solve=1 layout). */
+function resetRound(): void {
+  stopAuto();
+  stopTimer();
+  elapsed = 0;
+  won = false;
   freshDeal();
   render();
+  renderTimer();
+  renderBest();
+  updateChrome();
+  maybeAutoComplete();
+}
+
+function newGame(): void {
+  resetRound();
 }
 
 function toggleDraw(): void {
   drawCount = drawCount === 3 ? 1 : 3;
   setMode();
-  freshDeal();
-  render();
+  resetRound(); // renderBest() inside now reads the new mode's key
 }
 
 function button(
@@ -401,9 +583,15 @@ function button(
 const klondike: GameModule = {
   meta,
 
-  mount(el: HTMLElement, ctx: GameContext): void {
+  mount(el: HTMLElement, context: GameContext): void {
+    ctx = context;
     seed = parseSeed();
+    solveLayout = parseSolve();
     drawCount = 3;
+    elapsed = 0;
+    won = false;
+    timerId = null;
+    autoId = null;
     freshDeal();
     controller = new AbortController();
     const { signal } = controller;
@@ -428,17 +616,28 @@ const klondike: GameModule = {
     bar.className = "sol-bar";
     modeEl = document.createElement("span");
     modeEl.className = "sol-mode";
-    bar.appendChild(modeEl);
+    timerEl = document.createElement("span");
+    timerEl.className = "sol-timer";
+    bestEl = document.createElement("span");
+    bestEl.className = "sol-best";
+    statusEl = document.createElement("span");
+    statusEl.className = "sol-status";
+    bar.append(modeEl, timerEl, bestEl, statusEl);
     setMode();
+    renderTimer();
+    renderBest();
 
     boardEl = document.createElement("div");
     boardEl.className = "sol-board";
 
     const controls = document.createElement("div");
     controls.className = "ttt-controls";
+    autoBtn = button("Auto-complete", "ttt-btn", maybeAutoComplete, signal);
+    autoBtn.hidden = true;
     controls.append(
       button("New game", "ttt-btn", newGame, signal),
       button("Draw 3 / 1", "ttt-btn", toggleDraw, signal),
+      autoBtn,
       button(
         "Back to menu",
         "ttt-btn ttt-btn--ghost",
@@ -459,11 +658,15 @@ const klondike: GameModule = {
     boardEl.addEventListener("dblclick", onDblClick, { signal });
 
     render();
+    updateChrome();
+    maybeAutoComplete(); // ?solve=1 layout auto-runs immediately
   },
 
   unmount(): void {
     controller?.abort();
     controller = null;
+    stopTimer();
+    stopAuto();
     drag?.ghost?.remove();
     drag = null;
   },

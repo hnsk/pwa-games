@@ -594,11 +594,24 @@ body::after {
   align-items: center;
   gap: 1rem;
 }
-.sol-mode {
+.sol-mode,
+.sol-timer,
+.sol-best,
+.sol-status {
   font-size: 0.66rem;
   letter-spacing: 0.26em;
   text-transform: uppercase;
   color: var(--cyan);
+}
+.sol-best {
+  color: var(--ink-dim);
+}
+.sol-status {
+  margin-left: auto;
+  color: var(--magenta);
+}
+.sol-status:empty {
+  display: none;
 }
 
 .sol-board {
