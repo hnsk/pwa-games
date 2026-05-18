@@ -1,0 +1,49 @@
+# Project-tunable devctl config. Every field has a safe default; tune
+# per project instead of editing CLI code.
+
+[compose]
+# Compose file, repo-root-relative.
+file = "tools/docker-compose.yml"
+# Default service for `devctl shell` / `devctl run` / `devctl logs`.
+default_service = "dev"
+# COMPOSE_PROFILES (e.g. ["test"]). Empty = only profile-less services.
+profiles = []
+
+[test]
+# `devctl test` runner. Stack-agnostic here; filled at bootstrap with the
+# concrete runner. Policy (tagging, parallel-safety, long-lived test DB)
+# lives in TESTING.md — read it before wiring these.
+#
+# Compose service the suite runs in (test profile, long-lived).
+service = "test"
+# --full / whole suite. Also the `devctl run` no-argv fallback.
+# pytest:  "pytest -q"
+# jest:    "npm test --"
+# go:      "go test ./..."
+command = "npx playwright test"
+# --unit / fast tier only (empty → falls back to command).
+# pytest:  "pytest -q -m unit"
+# jest:    "npm test -- --selectProjects unit"
+# go:      "go test -short ./..."
+unit = "npx playwright test --grep @unit"
+# --changed / impacted only. A literal `{files}` token is replaced by the
+# changed-file list (git working tree + staged + vs branch merge-base).
+# Self-tracking tools omit the token and run as-is.
+# pytest:  "pytest -q --testmon"        (self-tracking, no {files})
+# pytest:  "pytest -q {files}"          (explicit file list)
+# jest:    "npm test -- --findRelatedTests {files}"
+# go:      "go test {files}"
+changed = "npx playwright test {files}"
+# --ci / CI entrypoint (provider-agnostic; CI calls only this).
+# e.g. "pytest -q --junitxml=tmp/junit.xml"
+ci = "npx playwright test --grep @unit --reporter=line"
+# Appended when --parallel is given.
+# pytest:  "-n auto"     (pytest-xdist)
+# jest:    "--maxWorkers=50%"
+# go:      "-p 4"
+parallel = "--workers=50%"
+
+[clean]
+# Repo-root-relative dirs `devctl clean` may wipe. Must stay inside the
+# repo root and may not be the root itself.
+targets = ["tmp", "dist", "node_modules", "playwright-report", "test-results"]

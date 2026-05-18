@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "devctl"
+version = "0.1.0"
+description = "Generic Docker-Compose dev/test helper CLI with captured output + run manifests."
+requires-python = ">=3.11"
+license = {text = "MIT"}
+# Zero third-party runtime deps: config is parsed with stdlib tomllib.
+dependencies = []
+
+[project.scripts]
+devctl = "devctl.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "tools/cli"}
+
+[tool.setuptools.packages.find]
+where = ["tools/cli"]
+include = ["devctl*"]

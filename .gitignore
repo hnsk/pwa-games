@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+
+# Captured run logs (command output, not source). Regenerated on every run.
+tools/logs/
+
+# Repo-root scratch for ad-hoc command output (show-tree dumps, log
+# tails, etc.). Re-readable by the Read tool; delete files when done.
+/tmp/
+
+# Claude Code per-session runtime state (recreated on launch).
+.claude/scheduled_tasks.lock

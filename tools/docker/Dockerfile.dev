@@ -1,0 +1,34 @@
+# Generic dev/test image. Language-agnostic base: shell, build tools,
+# networking + debugging utils. Add your language runtime (pin the
+# LATEST STABLE version — verify from the official source / Docker Hub
+# tags; do not default to a training-memory version) below the marker.
+#
+# `debian:stable-slim` is itself a moving alias that always resolves to
+# the current stable Debian release, so the base stays current without a
+# memory-pinned tag. For reproducible builds, replace it with a digest.
+FROM debian:stable-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        curl \
+        git \
+        gdb \
+        netcat-openbsd \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- project language runtime: Node.js ---
+# Latest stable LTS verified 2026-05-18 from https://nodejs.org/dist/index.json
+# → v24.15.0 "Krypton" (LTS). Pinned to the 24.x LTS line via NodeSource.
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+# Playwright browser system deps are installed by `npx playwright install
+# --with-deps` in the test service (Epic 2), not baked here.
+# ---------------------------------------------------------------------
+
+WORKDIR /work
+CMD ["sleep", "infinity"]

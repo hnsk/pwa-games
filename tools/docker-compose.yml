@@ -1,0 +1,57 @@
+# Base stack. The only compose file devctl uses (path set in
+# tools/devctl.toml [compose].file). No overlay merging by design — if a
+# project needs extra service stacks (db, cache, a prod variant), add
+# them here or in a second compose file and point devctl.toml at it.
+#
+# Env exported by `devctl`:
+#   DEVCTL_ROOT   absolute host path to the repo root (bind-mounted to /work)
+
+name: app
+
+x-dev-image: &dev_image
+  build:
+    context: ./docker
+    dockerfile: Dockerfile.dev
+  image: app-dev:latest
+  working_dir: /work
+  volumes:
+    - "${DEVCTL_ROOT:-..}:/work"
+
+services:
+  # Long-lived dev container: `devctl compose up -d` then
+  # `devctl shell` / `devctl run`. Source is bind-mounted, so edits on
+  # the host are visible immediately.
+  dev:
+    <<: *dev_image
+    volumes:
+      - "${DEVCTL_ROOT:-..}:/work"
+      - dev-cache:/cache
+    command: ["sleep", "infinity"]
+
+  # Test runner. Same image; opt-in via the `test` profile so a bare
+  # `up` doesn't start it. `devctl test` (skill dc-test) runs here.
+  test:
+    <<: *dev_image
+    profiles: ["test"]
+    command: ["sleep", "infinity"]
+
+  # Long-lived test DB — uncomment if the project needs one. Per
+  # TESTING.md it is started ONCE and NEVER restarted per run; state is
+  # reset between tests by TRUNCATE / transaction-rollback, NOT by
+  # recreating this container. Parallel workers isolate via a
+  # schema/database each, not a shared one. Pin the latest stable image
+  # tag at bootstrap (verify from Docker Hub; don't trust training memory).
+  # test-db:
+  #   image: postgres:<latest-stable>
+  #   profiles: ["test"]
+  #   environment:
+  #     POSTGRES_PASSWORD: test
+  #     POSTGRES_DB: app_test
+  #   volumes:
+  #     - test-db-data:/var/lib/postgresql/data
+  #   tmpfs:
+  #     - /tmp
+
+volumes:
+  dev-cache:
+  # test-db-data:

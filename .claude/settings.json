@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tools/scripts/capture:*)",
+      "Bash(tools/scripts/show-tree:*)",
+      "Bash(tools/scripts/compose:*)",
+      "Bash(tools/scripts/run:*)",
+      "Bash(tools/scripts/test:*)",
+      "Bash(tools/scripts/logs:*)",
+      "Bash(tools/scripts/ps:*)",
+      "Bash(tools/scripts/shell:*)",
+      "Bash(tools/scripts/clean:*)",
+      "Bash(.venv/bin/devctl:*)",
+      "Bash(./setup.sh:*)",
+
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git branch:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git blame:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(git remote -v:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(stat:*)",
+      "Bash(file:*)",
+      "Bash(tree:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(realpath:*)",
+      "Bash(dirname:*)",
+      "Bash(basename:*)"
+    ]
+  }
+}

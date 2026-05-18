@@ -1,0 +1,4 @@
+# No third-party runtime deps. devctl config is parsed with stdlib
+# tomllib (Python 3.11+). The package itself is installed editable by
+# setup.sh (`pip install -e .`). Add pinned deps here only if a future
+# component needs them.

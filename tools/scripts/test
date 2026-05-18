@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# shellcheck source=./_bootstrap.sh
+source "$(dirname "${BASH_SOURCE[0]}")/_bootstrap.sh"
+exec "$DEVCTL" test "$@"
