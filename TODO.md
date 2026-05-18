@@ -31,17 +31,27 @@ nothing runs on the host but `devctl`.
 Wire the concrete Playwright runner, the tagging scheme, parallel-safe
 execution, and the provider-neutral `--ci` entrypoint per `TESTING.md`.
 
-- [ ] Add Playwright + browsers to a `test`-profile service in
+- [x] Add Playwright + browsers to a `test`-profile service in
       `tools/docker-compose.yml` (long-lived browser image, no per-run
       restart of supporting services).
-- [ ] `playwright.config.ts`: parallel workers, fresh context per test,
+      (Image `mcr.microsoft.com/playwright:v1.60.0-noble`, pinned to
+      `@playwright/test@1.60.0`; both verified 2026-05-18 from npm +
+      MCR tags. `depends_on: dev`, shares `node-modules` volume.)
+- [x] `playwright.config.ts`: parallel workers, fresh context per test,
       points at the Compose-served preview/dev URL.
-- [ ] Fill `[test]` in `tools/devctl.toml`: `service`, `command`
+      (`fullyParallel`, default fresh context, no `webServer`; baseURL
+      `http://web:5173` — `web` alias on `dev` because `.dev` is HSTS-
+      preloaded in Chrome. Workers from CLI `--workers=50%`.)
+- [x] Fill `[test]` in `tools/devctl.toml`: `service`, `command`
       (`--full`), `unit` (`--grep @unit`), `changed` (`{files}` →
       area-tag grep), `ci` (`--changed` fast subset), `parallel`.
-- [ ] Tagging scheme enforced: every spec carries `@unit|@e2e` + an
+      (No native impact tool / `{files}` token unusable with non-spec
+      changed files → `changed` = `@unit --pass-with-no-tests`; `ci` =
+      full suite — it is the gate and the only spec is `@e2e`; see the
+      `tools/devctl.toml` comments + `TESTING.md`.)
+- [x] Tagging scheme enforced: every spec carries `@unit|@e2e` + an
       area tag (see `TESTING.md`).
-- [ ] One smoke spec (`tests/smoke.spec.ts @e2e @shell`) green via
+- [x] One smoke spec (`tests/smoke.spec.ts @e2e @shell`) green via
       `tools/scripts/test --full` and `--ci`.
 
 ## Epic 3: Host shell (framework-free)

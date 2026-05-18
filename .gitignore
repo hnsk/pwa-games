@@ -16,5 +16,10 @@ tools/logs/
 # tails, etc.). Re-readable by the Read tool; delete files when done.
 /tmp/
 
+# Playwright run artifacts (traces, screenshots, HTML report). Also
+# listed in [clean].targets. Regenerated on every test run.
+test-results/
+playwright-report/
+
 # Claude Code per-session runtime state (recreated on launch).
 .claude/scheduled_tasks.lock

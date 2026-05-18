@@ -26,17 +26,24 @@ command = "npx playwright test"
 # jest:    "npm test -- --selectProjects unit"
 # go:      "go test -short ./..."
 unit = "npx playwright test --grep @unit"
-# --changed / impacted only. A literal `{files}` token is replaced by the
-# changed-file list (git working tree + staged + vs branch merge-base).
-# Self-tracking tools omit the token and run as-is.
-# pytest:  "pytest -q --testmon"        (self-tracking, no {files})
-# pytest:  "pytest -q {files}"          (explicit file list)
-# jest:    "npm test -- --findRelatedTests {files}"
-# go:      "go test {files}"
-changed = "npx playwright test {files}"
-# --ci / CI entrypoint (provider-agnostic; CI calls only this).
-# e.g. "pytest -q --junitxml=tmp/junit.xml"
-ci = "npx playwright test --grep @unit --reporter=line"
+# --changed / impacted only. Playwright has NO native test-impact
+# selector (TESTING.md "Selective execution policy"), and a changed-file
+# list is mostly non-spec src files Playwright can't take as test paths,
+# so the `{files}` token is intentionally NOT used here. The portable
+# fallback is the area-tag scheme: a scoped change runs that module's
+# area tag + the whole @unit tier (`--grep "@<area>|@unit"`). With no
+# file→area map, the safe always-correct dev-loop default is the @unit
+# fast tier; widen to `--grep "@<area>|@unit"` by hand when iterating on
+# one area. Pre-commit/merge always run --full regardless.
+changed = "npx playwright test --grep @unit --pass-with-no-tests"
+# --ci / CI entrypoint (provider-agnostic; CI calls only this). Runs the
+# FULL suite: it is the gate (TESTING.md "CI strategy": merge/main →
+# full), and with no @unit specs yet a fast `--grep @unit` subset would
+# match nothing — the smoke spec must actually run green here (TODO
+# Epic 2). When the suite grows, a push/PR fast-vs-merge full split is a
+# CI-workflow concern (no provider workflow committed; the plan named
+# none) layered on top of this neutral entrypoint, not changed here.
+ci = "npx playwright test --reporter=line"
 # Appended when --parallel is given.
 # pytest:  "-n auto"     (pytest-xdist)
 # jest:    "--maxWorkers=50%"

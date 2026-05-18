@@ -39,13 +39,46 @@ services:
     ports:
       - "${DEV_PORT:-5180}:5173"
       - "${PREVIEW_PORT:-4180}:4173"
+    # The `test` service reaches the app over the compose network by
+    # hostname. The service name `dev` is UNUSABLE for that: `.dev` is in
+    # Chrome's preloaded HSTS list, so Chromium force-upgrades
+    # `http://dev:5173` to HTTPS and fails with ERR_SSL_PROTOCOL_ERROR
+    # (node fetch ignores HSTS, hence diagnostics looked fine). Expose a
+    # non-preloaded alias `web`; playwright.config.ts baseURL uses it.
+    networks:
+      default:
+        aliases: ["web"]
     command: ["sh", "-lc", "npm install && npm run dev"]
 
-  # Test runner. Same image; opt-in via the `test` profile so a bare
-  # `up` doesn't start it. `devctl test` (skill dc-test) runs here.
+  # Playwright test runner. NOT the dev image — uses the official
+  # Microsoft Playwright image which bakes the browsers + their system
+  # deps at /ms-playwright (PLAYWRIGHT_BROWSERS_PATH set in the image).
+  # Long-lived (`sleep infinity`) and opt-in via the `test` profile, so a
+  # bare `up` never starts it and `devctl test` does NOT recreate it or
+  # the `dev` service per run (TESTING.md: supporting services are
+  # long-lived, never per-run-restarted).
+  #
+  # Image tag pinned to the @playwright/test version: the npm package and
+  # the browser image MUST match. Verified 2026-05-18:
+  #   npm @playwright/test → 1.60.0
+  #   mcr.microsoft.com/v2/playwright/tags/list → v1.60.0-noble exists
+  # Bump both together (package.json devDependency + this tag).
+  #
+  # Shares the `node-modules` volume with `dev`/`run`: `dev` runs
+  # `npm install` (installs @playwright/test 1.60.0 from package.json);
+  # the browsers come from the image, so this service only needs the npm
+  # package present. `depends_on: dev` so `devctl test` brings the
+  # app-under-test up (reachable on the compose network at
+  # http://dev:5173 — see playwright.config.ts baseURL).
   test:
-    <<: *dev_image
+    image: mcr.microsoft.com/playwright:v1.60.0-noble
     profiles: ["test"]
+    working_dir: /work
+    volumes:
+      - "${DEVCTL_ROOT:-..}:/work"
+      - node-modules:/work/node_modules
+    depends_on:
+      - dev
     command: ["sleep", "infinity"]
 
   # Long-lived test DB — uncomment if the project needs one. Per
