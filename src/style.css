@@ -1,29 +1,397 @@
-/* Epic 1 baseline only. Real shell design tokens + Tailwind entry land
-   with the host UI epic. Mobile-first. */
+/* ===========================================================================
+   PWA Games — shell design system
+   Aesthetic: "neon cabinet noir". A near-black arcade cabinet with a
+   faint cyan/magenta plasma haze, fine scanlines and film grain. Offline-
+   safe: system monospace only (no web-font fetch), so the look survives
+   with zero network. Mobile-first; light mode is an inverted "paper"
+   variant via prefers-color-scheme.
+   ========================================================================= */
+
 :root {
   color-scheme: dark light;
-  font-family: system-ui, sans-serif;
+
+  /* palette ---------------------------------------------------------- */
+  --bg: #07080d;
+  --bg-2: #0d0f18;
+  --surface: rgba(255, 255, 255, 0.035);
+  --surface-hi: rgba(255, 255, 255, 0.07);
+  --line: rgba(255, 255, 255, 0.09);
+  --line-hi: rgba(255, 255, 255, 0.22);
+  --ink: #eef1f7;
+  --ink-dim: #9aa3b8;
+  --ink-faint: #5a627a;
+
+  --cyan: #36e6df;
+  --magenta: #ff3d8b;
+  --glow-cyan: rgba(54, 230, 223, 0.55);
+  --glow-mag: rgba(255, 61, 139, 0.45);
+
+  /* type ------------------------------------------------------------- */
+  --mono: ui-monospace, "SF Mono", "SFMono-Regular", "Cascadia Mono",
+    "JetBrains Mono", Menlo, Consolas, monospace;
+
+  /* metrics ---------------------------------------------------------- */
+  --rad: 14px;
+  --pad: clamp(1rem, 4vw, 2rem);
+  --maxw: 1080px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f4f1ea;
+    --bg-2: #ebe7dc;
+    --surface: rgba(20, 18, 14, 0.035);
+    --surface-hi: rgba(20, 18, 14, 0.06);
+    --line: rgba(20, 18, 14, 0.12);
+    --line-hi: rgba(20, 18, 14, 0.32);
+    --ink: #16140f;
+    --ink-dim: #565144;
+    --ink-faint: #8c8674;
+    --cyan: #0a8f89;
+    --magenta: #c41862;
+    --glow-cyan: rgba(10, 143, 137, 0.28);
+    --glow-mag: rgba(196, 24, 98, 0.22);
+  }
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
+}
+
+body {
   min-height: 100dvh;
+  font-family: var(--mono);
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* atmosphere: plasma haze + scanlines + grain, behind everything ------ */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+body::before {
+  background:
+    radial-gradient(
+      60% 50% at 18% 0%,
+      var(--glow-cyan),
+      transparent 70%
+    ),
+    radial-gradient(
+      55% 45% at 95% 15%,
+      var(--glow-mag),
+      transparent 70%
+    ),
+    linear-gradient(180deg, var(--bg-2), var(--bg) 55%);
+  opacity: 0.9;
+}
+body::after {
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.16) 0 1px,
+    transparent 1px 3px
+  );
+  mix-blend-mode: overlay;
+  opacity: 0.5;
+}
+
+#app {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+/* ---- shell layout -------------------------------------------------- */
+.shell-main {
+  flex: 1;
+  width: 100%;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: var(--pad);
+  padding-top: clamp(1.5rem, 6vw, 3rem);
+}
+
+/* ---- header -------------------------------------------------------- */
+.shell-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem var(--pad);
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  border-bottom: 1px solid var(--line);
+}
+
+.shell-header__mark {
+  width: 0.7rem;
+  height: 1.45rem;
+  flex: none;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--cyan), var(--magenta));
+  box-shadow: 0 0 12px var(--glow-cyan), 0 0 20px var(--glow-mag);
+  animation: pulse 2.4s var(--ease) infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scaleY(0.62);
+    opacity: 0.7;
+  }
+}
+
+.shell-header__title {
+  margin: 0;
+  font-size: clamp(1rem, 4.5vw, 1.3rem);
+  font-weight: 700;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.shell-header__title a {
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+.shell-header__title a:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 4px;
+  border-radius: 3px;
+}
+
+.shell-header__tag {
+  margin-left: auto;
+  font-size: 0.62rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+@media (max-width: 26rem) {
+  .shell-header__tag {
+    display: none;
+  }
+}
+
+/* ---- menu ---------------------------------------------------------- */
+.menu__lead {
+  margin: 0 0 clamp(1.5rem, 5vw, 2.5rem);
+}
+.menu__kicker {
+  font-size: 0.66rem;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+.menu__head {
+  margin: 0.5rem 0 0;
+  font-size: clamp(1.9rem, 9vw, 3.4rem);
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+.menu__head em {
+  font-style: normal;
+  color: var(--magenta);
+}
+
+.menu__grid {
+  display: grid;
+  gap: clamp(0.9rem, 3vw, 1.25rem);
+  grid-template-columns: 1fr;
+}
+@media (min-width: 34rem) {
+  .menu__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 56rem) {
+  .menu__grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* card --------------------------------------------------------------- */
+.game-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.15rem;
+  min-height: 9.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--rad);
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    transform 0.4s var(--ease),
+    border-color 0.4s var(--ease),
+    background 0.4s var(--ease);
+}
+.game-card::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  background: radial-gradient(
+    120% 90% at 100% 0%,
+    var(--glow-mag),
+    transparent 55%
+  );
+  opacity: 0;
+  transition: opacity 0.45s var(--ease);
+}
+.game-card:hover,
+.game-card:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--line-hi);
+  background: var(--surface-hi);
+  outline: none;
+}
+.game-card:hover::after,
+.game-card:focus-visible::after {
+  opacity: 0.5;
+}
+.game-card:focus-visible {
+  box-shadow: 0 0 0 2px var(--cyan);
+}
+.game-card:active {
+  transform: translateY(-1px) scale(0.992);
+}
+
+.game-card__thumb {
+  width: 2.9rem;
+  height: 2.9rem;
+  flex: none;
   display: grid;
   place-items: center;
-  background: #111;
-  color: #eee;
+  border-radius: 10px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--bg);
+  background: linear-gradient(135deg, var(--cyan), var(--magenta));
+  box-shadow: 0 0 18px var(--glow-cyan);
+  overflow: hidden;
+}
+.game-card__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.starter {
+.game-card__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.game-card__desc {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+.game-card__cue {
+  margin-top: auto;
+  font-size: 0.66rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  transition: color 0.4s var(--ease);
+}
+.game-card:hover .game-card__cue,
+.game-card:focus-visible .game-card__cue {
+  color: var(--cyan);
+}
+
+/* empty state -------------------------------------------------------- */
+.menu__empty {
+  display: grid;
+  place-items: center;
+  gap: 1rem;
+  padding: clamp(3rem, 16vw, 6rem) 1rem;
   text-align: center;
-  padding: 1.5rem;
+  border: 1px dashed var(--line-hi);
+  border-radius: var(--rad);
+  background: var(--surface);
+}
+.menu__empty-glyph {
+  font-size: clamp(2.5rem, 12vw, 4rem);
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+  animation: blink 1.6s steps(1) infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+.menu__empty-title {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.menu__empty-sub {
+  margin: 0;
+  max-width: 28ch;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--ink-dim);
 }
 
-.starter h1 {
-  margin: 0 0 0.5rem;
-  font-size: clamp(1.75rem, 6vw, 2.5rem);
+/* staggered entrance ------------------------------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+  .menu__lead,
+  .game-card,
+  .menu__empty {
+    animation: rise 0.6s var(--ease) both;
+  }
+  .game-card:nth-child(1) {
+    animation-delay: 0.05s;
+  }
+  .game-card:nth-child(2) {
+    animation-delay: 0.1s;
+  }
+  .game-card:nth-child(3) {
+    animation-delay: 0.15s;
+  }
+  .game-card:nth-child(4) {
+    animation-delay: 0.2s;
+  }
+  .game-card:nth-child(n + 5) {
+    animation-delay: 0.25s;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
 }

@@ -58,18 +58,27 @@ execution, and the provider-neutral `--ci` entrypoint per `TESTING.md`.
 
 Drop-in game host: router, registry, storage, module contract, menu UI.
 
-- [ ] `src/games/types.ts` — `GameMeta` / `GameContext` / `GameModule`
+- [x] `src/games/types.ts` — `GameMeta` / `GameContext` / `GameModule`
       exactly per plan (mount may return a Promise for WASM).
-- [ ] `src/lib/storage.ts` — `createGameStorage(gameId)`, JSON
-      get/set/remove keyed `pwa-games:<gameId>:<key>`.
-- [ ] `src/router.ts` — hash router: `#/` menu, `#/g/<id>` game;
-      mount/unmount active `GameModule` into `#app`.
-- [ ] `src/games/registry.ts` — array / lazy `() => import()` factories
-      so games code-split.
-- [ ] `src/ui/` menu + header (mobile-first), built with the
-      `frontend-design` skill.
-- [ ] Specs: `@e2e @router` (menu↔game nav), `@unit @storage`
-      (namespace + JSON round-trip).
+      (+`GameStorage` contract interface, impl in `lib/storage.ts`.)
+- [x] `src/lib/storage.ts` — `createGameStorage(gameId)`, JSON
+      get/set/remove keyed `pwa-games:<gameId>:<key>`. (Corrupt/missing
+      → `null`, no throw.)
+- [x] `src/router.ts` — hash router: `#/` menu, `#/g/<id>` game;
+      mount/unmount active `GameModule` into `#app`. (Nav-token guard
+      for async mount; unknown id → menu; `onExit`/title link → `#/`.)
+- [x] `src/games/registry.ts` — array / lazy `() => import()` factories
+      so games code-split. (`GameEntry{meta, load()}` so the menu
+      renders from `meta` without loading a game; `findGame(id)`.
+      Currently empty — tictactoe entry lands in Epic 4.)
+- [x] `src/ui/` menu + header (mobile-first), built with the
+      `frontend-design` skill. (Plain CSS design system — Tailwind not
+      wired; safe DOM nodes; empty-state while registry empty;
+      `main.ts` bootstraps `startRouter`.)
+- [x] Specs: `@e2e @router` (menu↔game nav), `@unit @storage`
+      (namespace + JSON round-trip). (`tests/router.spec.ts` 3 cases;
+      `tests/storage.spec.ts` 3 cases via Node `localStorage` polyfill
+      — real `@unit` tier, no nav. Smoke spec updated to new shell.)
 
 ## Epic 4: tictactoe (first game)
 

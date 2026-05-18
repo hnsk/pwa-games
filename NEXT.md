@@ -2,25 +2,33 @@
 
 Resume pointer for a fresh session. Updated at every epic hard-stop.
 
-**Current epic:** Epic 3 — Host shell (framework-free)
-**Next unchecked item:** `src/games/types.ts` — `GameMeta` /
-`GameContext` / `GameModule` exactly per plan (mount may return a
-Promise for WASM).
+**Current epic:** Epic 4 — tictactoe (first game)
+**Next unchecked item:** `src/games/tictactoe/logic.ts` — pure `move` /
+`winner` / `isDraw`, no DOM.
 
-Notes carried from Epic 2 (test harness):
-- `dc-test --full` runs the whole Playwright suite; `--ci` runs the
-  full suite too (it is the gate; the only spec is `@e2e` so a
-  `@unit` fast subset is empty for now). `--changed`/`--unit` =
-  `--grep @unit --pass-with-no-tests` (no `@unit` specs yet → exit 0).
-- `test` service = `mcr.microsoft.com/playwright:v1.60.0-noble`
-  (browsers baked), `test` profile, `depends_on: dev`, shares the
-  `node-modules` volume. App-under-test reached at
-  **`http://web:5173`** — `web` is a compose network alias on the
-  `dev` service; the literal name `dev` is HSTS-preloaded in Chrome
-  (`.dev`) and breaks Chromium navigation. Override via `BASE_URL`.
-- Every spec MUST carry one speed tier (`@unit`|`@e2e`) + one area
-  tag. Epic 3 adds `@router` / `@storage`; Epic 3 unit specs make the
-  `@unit` fast subset non-empty (then `--ci`/`--changed` get real).
+Notes carried from Epic 3 (host shell):
+- Contract: `src/games/types.ts` — `GameMeta` / `GameContext` /
+  `GameModule` (`mount` may return a Promise; `unmount` frees
+  listeners/RAF/wasm). `GameStorage` interface also lives there.
+- `src/lib/storage.ts` `createGameStorage(id)`: keys
+  `pwa-games:<id>:<key>`, JSON; corrupt/missing → `null` (no throw).
+- `src/games/registry.ts`: `registry: GameEntry[]` where
+  `GameEntry = { meta, load: () => Promise<GameModule> }` so games
+  code-split. **It is currently empty** — register tictactoe here
+  (Epic 4 item: `{ meta, load: () => import("./tictactoe/index.ts")
+  .then(m => m.default) }`). Menu renders from `meta` alone.
+- `src/router.ts` `startRouter({ app, renderMenu })`: `#/`→menu,
+  `#/g/<id>`→game; nav-token guard for async `mount`; unknown id and
+  `ctx.onExit` → `#/`. Wired in `src/main.ts`.
+- UI: `src/ui/header.ts` + `src/ui/menu.ts`, plain-CSS design system in
+  `src/style.css` (Tailwind NOT wired — PLAN mentions it but no TODO
+  item adds it; revisit only if a game needs it). Safe DOM nodes only.
+- Tests: `@unit` fast tier is now NON-EMPTY (`tests/storage.spec.ts`
+  via a Node `localStorage` polyfill — true pure-logic, no browser
+  nav). So `--ci`/`--changed` `@unit` subset is real. `tests/
+  router.spec.ts` = `@e2e @router`. Epic 4 adds `@unit @tictactoe`
+  (logic.ts) + `@e2e @tictactoe` (play→win→persist).
+- Every spec MUST carry one speed tier (`@unit`|`@e2e`) + one area tag.
 
 Resume steps:
 1. Read `CLAUDE.md` (conventions), `TESTING.md` (test policy,

@@ -6,10 +6,11 @@ import { test, expect } from "@playwright/test";
 // Every spec in this repo MUST carry exactly one speed tier
 // (@unit | @e2e) + one area tag — an untagged test is a broken test
 // (TESTING.md "Tagging taxonomy").
-test("shell boots and renders the starter page @e2e @shell", async ({
-  page,
-}) => {
+test("shell boots and renders the menu @e2e @shell", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/PWA Games/);
-  await expect(page.locator("#app h1")).toHaveText("PWA Games");
+  await expect(page.locator(".shell-header__title a")).toHaveText(
+    "PWA Games",
+  );
+  await expect(page.locator(".menu__head")).toBeVisible();
 });
