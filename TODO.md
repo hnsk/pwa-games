@@ -13,15 +13,18 @@ Status key: `[ ]` todo · `[~]` in progress · `[x]` done
 Vite + TypeScript project that builds and serves inside Docker Compose;
 nothing runs on the host but `devctl`.
 
-- [ ] Add Node (latest stable, verified from Docker Hub) to
+- [x] Add Node (latest stable, verified from Docker Hub) to
       `tools/docker/Dockerfile.dev` under the runtime marker.
-- [ ] Scaffold Vite + TS vanilla project: `index.html`,
+      (Node v24.15.0 LTS, verified from nodejs.org/dist.)
+- [x] Scaffold Vite + TS vanilla project: `index.html`,
       `vite.config.ts`, `src/main.ts`, `src/style.css`, `package.json`,
       `tsconfig.json`. Vite `base` from env, default `./`.
-- [ ] Define `dev` service (Vite dev server) + `build`/`preview` usage
+      (vite 8.0.13, typescript 6.0.3, @types/node 25.8.0, +vite-env.d.ts.)
+- [x] Define `dev` service (Vite dev server) + `build`/`preview` usage
       in `tools/docker-compose.yml`; set `[compose].default_service` in
-      `tools/devctl.toml`.
-- [ ] `dc-up` serves the Vite starter page; `dc-run` build succeeds.
+      `tools/devctl.toml`. (default_service already `dev`; node_modules
+      named volume; host ports 5180/4180 via DEV_PORT/PREVIEW_PORT.)
+- [x] `dc-up` serves the Vite starter page; `dc-run` build succeeds.
 
 ## Epic 2: Test harness + conventions (mandatory, before features)
 
