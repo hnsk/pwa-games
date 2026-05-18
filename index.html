@@ -7,7 +7,25 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#07080d" />
+    <meta name="theme-color" content="#16181d" />
+    <script>
+      // Pre-paint theme bootstrap (must run before the stylesheet
+      // applies, hence inline + blocking). Seed from the saved choice,
+      // else the OS preference; default dark. Mirrors src/lib/theme.ts.
+      (function () {
+        try {
+          var t = localStorage.getItem("pwa-games:theme");
+          if (t !== "light" && t !== "dark") {
+            t = window.matchMedia("(prefers-color-scheme: light)").matches
+              ? "light"
+              : "dark";
+          }
+          document.documentElement.dataset.theme = t;
+        } catch (e) {
+          document.documentElement.dataset.theme = "dark";
+        }
+      })();
+    </script>
     <link rel="icon" href="favicon.ico" sizes="any" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="apple-touch-icon-180x180.png" />

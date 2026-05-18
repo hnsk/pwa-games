@@ -1,34 +1,42 @@
 /* ===========================================================================
    PWA Games — shell design system
-   Aesthetic: "neon cabinet noir". A near-black arcade cabinet with a
-   faint cyan/magenta plasma haze, fine scanlines and film grain. Offline-
-   safe: system monospace only (no web-font fetch), so the look survives
-   with zero network. Mobile-first; light mode is an inverted "paper"
-   variant via prefers-color-scheme.
+   Aesthetic: "muted slate & amber". Calm neutral slate surfaces, off-
+   white ink, a single warm amber accent, and one soft vignette for
+   depth — no neon, scanlines or grain. Offline-safe: system fonts only
+   (no web-font fetch), so the look survives with zero network. Mobile-
+   first. Light/dark is a 2-state switch via `<html data-theme>` (seeded
+   from the OS preference on first load, then user-controlled).
    ========================================================================= */
 
-:root {
-  color-scheme: dark light;
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
 
-  /* palette ---------------------------------------------------------- */
-  --bg: #07080d;
-  --bg-2: #0d0f18;
-  /* Opaque solitaire card face/back surface. Distinct from --bg-2 so
-     cards keep contrast on the light "paper" palette, where --bg-2 is
-     nearly the page colour. */
-  --sol-card-bg: #1c2030;
-  --surface: rgba(255, 255, 255, 0.035);
-  --surface-hi: rgba(255, 255, 255, 0.07);
-  --line: rgba(255, 255, 255, 0.09);
-  --line-hi: rgba(255, 255, 255, 0.22);
-  --ink: #eef1f7;
-  --ink-dim: #9aa3b8;
-  --ink-faint: #5a627a;
+  /* palette — "muted slate & amber": neutral slate greys, off-white
+     ink, a single warm amber accent. No neon. -------------------------- */
+  --bg: #16181d;
+  --bg-2: #1f232b;
+  /* Opaque solitaire card face/back surface, a touch above --bg-2 so
+     cards lift off the table without a hard edge. */
+  --sol-card-bg: #232833;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-hi: rgba(255, 255, 255, 0.075);
+  --line: rgba(255, 255, 255, 0.1);
+  --line-hi: rgba(255, 255, 255, 0.2);
+  --ink: #e7e9ee;
+  --ink-dim: #9aa0ac;
+  --ink-faint: #5f6470;
 
-  --cyan: #36e6df;
-  --magenta: #ff3d8b;
-  --glow-cyan: rgba(54, 230, 223, 0.55);
-  --glow-mag: rgba(255, 61, 139, 0.45);
+  /* Single accent + a deeper shade for the two-stop gradient. The old
+     --cyan/--magenta names are kept as aliases so every existing
+     reference (header sheen, focus ring, card backs) re-tints to amber
+     without a sweeping rename. */
+  --accent: #e0a64b;
+  --accent-2: #b9772a;
+  --cyan: var(--accent);
+  --magenta: var(--accent-2);
+  --glow-cyan: rgba(224, 166, 75, 0.16);
+  --glow-mag: rgba(185, 119, 42, 0.12);
 
   /* type ------------------------------------------------------------- */
   --mono: ui-monospace, "SF Mono", "SFMono-Regular", "Cascadia Mono",
@@ -50,25 +58,30 @@
   --sol-reveal: calc(var(--sol-card-h) * 0.28);
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: #f4f1ea;
-    --bg-2: #ebe7dc;
-    --sol-card-bg: #fffdf7;
-    --surface: rgba(20, 18, 14, 0.035);
-    --surface-hi: rgba(20, 18, 14, 0.06);
-    --line: rgba(20, 18, 14, 0.18);
-    --line-hi: rgba(20, 18, 14, 0.4);
-    --ink: #16140f;
-    --ink-dim: #565144;
-    --ink-faint: #8c8674;
-    --cyan: #0a8f89;
-    --magenta: #c41862;
-    /* haze glows are layered at 0.9 opacity; over paper they smear into
-       a garish rainbow band, so the light palette keeps them faint. */
-    --glow-cyan: rgba(10, 143, 137, 0.16);
-    --glow-mag: rgba(196, 24, 98, 0.14);
-  }
+/* Light theme. Driven by an explicit `data-theme` on <html> (set by
+   the pre-paint bootstrap in index.html, toggled in the header), NOT by
+   prefers-color-scheme — a 2-state switch needs an attribute it can
+   override. First load seeds `data-theme` from the OS preference; after
+   that it is whatever the user picked. The app requires JS to render at
+   all, so there is no no-JS media-query fallback to maintain. */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #faf9f6;
+  --bg-2: #efece5;
+  --sol-card-bg: #ffffff;
+  --surface: rgba(20, 20, 24, 0.035);
+  --surface-hi: rgba(20, 20, 24, 0.06);
+  --line: rgba(20, 20, 24, 0.14);
+  --line-hi: rgba(20, 20, 24, 0.3);
+  --ink: #1c1e22;
+  --ink-dim: #565a63;
+  --ink-faint: #8a8f99;
+
+  --accent: #b9772a;
+  --accent-2: #8a571c;
+  --glow-cyan: rgba(185, 119, 42, 0.14);
+  --glow-mag: rgba(138, 87, 28, 0.1);
 }
 
 * {
@@ -89,7 +102,9 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* atmosphere: plasma haze + scanlines + grain, behind everything ------ */
+/* atmosphere: a single soft vignette for focus + depth — no plasma,
+   no scanlines, no grain. `body::after` is kept as an inert hook (some
+   specs still query it) but draws nothing. */
 body::before,
 body::after {
   content: "";
@@ -101,39 +116,29 @@ body::after {
 body::before {
   background:
     radial-gradient(
-      60% 50% at 18% 0%,
-      var(--glow-cyan),
-      transparent 70%
+      125% 95% at 50% -10%,
+      transparent 55%,
+      rgba(0, 0, 0, 0.5) 100%
     ),
-    radial-gradient(
-      55% 45% at 95% 15%,
-      var(--glow-mag),
-      transparent 70%
-    ),
-    linear-gradient(180deg, var(--bg-2), var(--bg) 55%);
-  opacity: 0.9;
-}
-body::after {
-  background-image: repeating-linear-gradient(
-    0deg,
-    rgba(0, 0, 0, 0.16) 0 1px,
-    transparent 1px 3px
-  );
-  mix-blend-mode: overlay;
+    linear-gradient(180deg, var(--bg-2), var(--bg) 45%);
   opacity: 0.5;
 }
+body::after {
+  display: none;
+}
 
-/* The atmosphere layers are tuned for the near-black cabinet. On the
-   light "paper" variant the same opacities wash the page out, so dial
-   the haze + scanlines back (dark mode is untouched). */
-@media (prefers-color-scheme: light) {
-  body::before {
-    opacity: 0.34;
-  }
-  body::after {
-    mix-blend-mode: multiply;
-    opacity: 0.18;
-  }
+/* The vignette is darkening; over the light paper it only needs a
+   warm, gentle edge (and stays well under the 0.55 the @tictactoe
+   light-scheme regression test asserts). */
+:root[data-theme="light"] body::before {
+  background:
+    radial-gradient(
+      125% 95% at 50% -10%,
+      transparent 62%,
+      rgba(70, 60, 40, 0.16) 100%
+    ),
+    linear-gradient(180deg, var(--bg-2), var(--bg) 45%);
+  opacity: 0.45;
 }
 
 #app {
@@ -170,25 +175,12 @@ body::after {
 }
 
 .shell-header__mark {
-  width: 0.7rem;
-  height: 1.45rem;
+  width: 0.55rem;
+  height: 1.4rem;
   flex: none;
   border-radius: 2px;
-  background: linear-gradient(180deg, var(--cyan), var(--magenta));
-  box-shadow: 0 0 12px var(--glow-cyan), 0 0 20px var(--glow-mag);
-  animation: pulse 2.4s var(--ease) infinite;
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    transform: scaleY(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scaleY(0.62);
-    opacity: 0.7;
-  }
+  /* A quiet solid amber tab — no glow, no pulse. */
+  background: var(--accent);
 }
 
 .shell-header__title {
@@ -221,6 +213,39 @@ body::after {
   .shell-header__tag {
     display: none;
   }
+  /* tag carried the right-push; hand it to the toggle when it hides */
+  .shell-header__theme {
+    margin-left: auto;
+  }
+}
+
+.shell-header__theme {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: var(--ink-dim);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    color 0.2s var(--ease),
+    background 0.2s var(--ease),
+    border-color 0.2s var(--ease);
+}
+.shell-header__theme:hover {
+  color: var(--accent);
+  background: var(--surface-hi);
+  border-color: var(--line-hi);
+}
+.shell-header__theme:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 /* ---- menu ---------------------------------------------------------- */
@@ -324,8 +349,7 @@ body::after {
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--bg);
-  background: linear-gradient(135deg, var(--cyan), var(--magenta));
-  box-shadow: 0 0 18px var(--glow-cyan);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
   overflow: hidden;
 }
 .game-card__thumb img {
@@ -480,13 +504,12 @@ body::after {
     border-color 0.25s var(--ease),
     transform 0.12s var(--ease);
 }
+/* Two calm, high-contrast marks (no neon glow): ink vs amber. */
 .ttt-cell[data-mark="X"] {
-  color: var(--cyan);
-  text-shadow: 0 0 14px var(--glow-cyan);
+  color: var(--ink);
 }
 .ttt-cell[data-mark="O"] {
-  color: var(--magenta);
-  text-shadow: 0 0 14px var(--glow-mag);
+  color: var(--accent);
 }
 .ttt-cell:not(:disabled):hover,
 .ttt-cell:not(:disabled):focus-visible {

@@ -1,7 +1,12 @@
 import "./style.css";
 import { registerSW } from "virtual:pwa-register";
 import { startRouter } from "./router.ts";
+import { initTheme } from "./lib/theme.ts";
 import { renderMenu } from "./ui/menu.ts";
+
+// The pre-paint inline script in index.html already set <html
+// data-theme>; this only syncs the theme-color meta to that choice.
+initTheme();
 
 // Bootstrap: hash router drives the single `#app` container.
 const app = document.querySelector<HTMLElement>("#app");
