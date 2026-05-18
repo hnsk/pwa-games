@@ -11,6 +11,7 @@ from .commands import (
     clean,
     compose,
     logs,
+    peek,
     ps,
     run,
     shell,
@@ -27,6 +28,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     capture.register(sub)
     show_tree.register(sub)
+    peek.register(sub)
     compose.register(sub)
     run.register(sub)
     test.register(sub)

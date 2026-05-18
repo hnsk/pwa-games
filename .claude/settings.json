@@ -3,6 +3,7 @@
     "allow": [
       "Bash(tools/scripts/capture:*)",
       "Bash(tools/scripts/show-tree:*)",
+      "Bash(tools/scripts/peek:*)",
       "Bash(tools/scripts/compose:*)",
       "Bash(tools/scripts/run:*)",
       "Bash(tools/scripts/test:*)",
