@@ -18,15 +18,28 @@ x-dev-image: &dev_image
     - "${DEVCTL_ROOT:-..}:/work"
 
 services:
-  # Long-lived dev container: `devctl compose up -d` then
-  # `devctl shell` / `devctl run`. Source is bind-mounted, so edits on
-  # the host are visible immediately.
+  # Vite dev server. `devctl compose up -d` (skill dc-up) builds the
+  # image, installs deps, and serves the app at http://localhost:5173.
+  # Source is bind-mounted so host edits hot-reload. node_modules lives
+  # in a named volume (the repo bind-mount would otherwise shadow it
+  # onto the host); `devctl run` reuses the same volume, so a one-shot
+  # `dc-run build` / `preview` sees the installed deps.
+  #
+  #   build:   tools/scripts/run -- npm run build      (skill dc-run)
+  #   preview: tools/scripts/run -- npm run preview     (port 4173)
   dev:
     <<: *dev_image
     volumes:
       - "${DEVCTL_ROOT:-..}:/work"
       - dev-cache:/cache
-    command: ["sleep", "infinity"]
+      - node-modules:/work/node_modules
+    # Host ports offset (5173/4173 are often taken by other local Vite
+    # projects). Container ports stay Vite-default. Override the host
+    # side with DEV_PORT / PREVIEW_PORT if 5180/4180 also collide.
+    ports:
+      - "${DEV_PORT:-5180}:5173"
+      - "${PREVIEW_PORT:-4180}:4173"
+    command: ["sh", "-lc", "npm install && npm run dev"]
 
   # Test runner. Same image; opt-in via the `test` profile so a bare
   # `up` doesn't start it. `devctl test` (skill dc-test) runs here.
@@ -54,4 +67,5 @@ services:
 
 volumes:
   dev-cache:
+  node-modules:
   # test-db-data:

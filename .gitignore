@@ -5,6 +5,10 @@ __pycache__/
 build/
 dist/
 
+# JS deps (live in a named volume; never committed). package-lock.json
+# IS committed for reproducible installs.
+node_modules/
+
 # Captured run logs (command output, not source). Regenerated on every run.
 tools/logs/
 
