@@ -85,3 +85,36 @@ test("light scheme tones down the atmosphere haze @e2e @tictactoe", async ({
   expect(haze).toBeLessThanOrEqual(0.55); // light override active (was 0.9)
   await ctx.close();
 });
+
+// Regression: rows were implicit `auto`, so a placed glyph inflated its
+// row and cells resized/jumped on click. All 9 cells must keep the same
+// box across an empty board → mixed fills.
+test("cells keep a constant size as marks are placed @e2e @tictactoe", async ({
+  page,
+}) => {
+  await page.goto("/#/g/tictactoe");
+  await expect(page.locator(".ttt-grid")).toBeVisible();
+
+  const boxes = async () =>
+    Promise.all(
+      [...Array(9)].map((_, i) =>
+        page.locator(`.ttt-cell[data-idx="${i}"]`).boundingBox(),
+      ),
+    );
+
+  const before = await boxes();
+  // X:0  O:4  X:8 — corners + center filled, rest empty
+  await page.locator('.ttt-cell[data-idx="0"]').click();
+  await page.locator('.ttt-cell[data-idx="4"]').click();
+  await page.locator('.ttt-cell[data-idx="8"]').click();
+  const after = await boxes();
+
+  const w = before[0]!.width;
+  const h = before[0]!.height;
+  for (let i = 0; i < 9; i++) {
+    expect(Math.abs(after[i]!.width - w)).toBeLessThan(0.5);
+    expect(Math.abs(after[i]!.height - h)).toBeLessThan(0.5);
+    expect(Math.abs(after[i]!.width - before[i]!.width)).toBeLessThan(0.5);
+    expect(Math.abs(after[i]!.height - before[i]!.height)).toBeLessThan(0.5);
+  }
+});

@@ -435,6 +435,10 @@ body::after {
 .ttt-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  /* Explicit equal rows: without this the rows are implicit `auto` and a
+     placed glyph inflates its row's min-content, so cells resize/jump on
+     click. Fixed 1fr rows keep every cell the same size. */
+  grid-template-rows: repeat(3, 1fr);
   gap: clamp(0.5rem, 2.5vw, 0.85rem);
   width: 100%;
   max-width: 26rem;
@@ -445,6 +449,8 @@ body::after {
 .ttt-cell {
   display: grid;
   place-items: center;
+  min-height: 0; /* don't let the glyph's min-content expand the 1fr row */
+  overflow: hidden;
   font-family: var(--mono);
   font-size: clamp(2.2rem, 13vw, 4rem);
   font-weight: 700;
