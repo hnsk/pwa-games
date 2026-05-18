@@ -13,6 +13,10 @@
   /* palette ---------------------------------------------------------- */
   --bg: #07080d;
   --bg-2: #0d0f18;
+  /* Opaque solitaire card face/back surface. Distinct from --bg-2 so
+     cards keep contrast on the light "paper" palette, where --bg-2 is
+     nearly the page colour. */
+  --sol-card-bg: #1c2030;
   --surface: rgba(255, 255, 255, 0.035);
   --surface-hi: rgba(255, 255, 255, 0.07);
   --line: rgba(255, 255, 255, 0.09);
@@ -50,6 +54,7 @@
   :root {
     --bg: #f4f1ea;
     --bg-2: #ebe7dc;
+    --sol-card-bg: #fffdf7;
     --surface: rgba(20, 18, 14, 0.035);
     --surface-hi: rgba(20, 18, 14, 0.06);
     --line: rgba(20, 18, 14, 0.18);
@@ -123,11 +128,11 @@ body::after {
    the haze + scanlines back (dark mode is untouched). */
 @media (prefers-color-scheme: light) {
   body::before {
-    opacity: 0.5;
+    opacity: 0.34;
   }
   body::after {
     mix-blend-mode: multiply;
-    opacity: 0.22;
+    opacity: 0.18;
   }
 }
 
@@ -664,7 +669,9 @@ body::after {
 .sol-waste .sol-card {
   position: absolute;
   top: 0;
-  left: calc(var(--fan, 0) * var(--sol-card-w) * 0.32);
+  /* Wide enough that each fanned draw-3 card's rank/suit corner clears
+     the one above it (corner ≈ 0.3·card-w wide); 0.32 overlapped. */
+  left: calc(var(--fan, 0) * var(--sol-card-w) * 0.5);
 }
 
 .sol-col {
@@ -688,7 +695,7 @@ body::after {
   width: var(--sol-card-w);
   height: var(--sol-card-h);
   border-radius: clamp(4px, 1.6vw, 8px);
-  background: var(--bg-2);
+  background: var(--sol-card-bg);
   border: 1px solid var(--line-hi);
   color: var(--ink);
   display: grid;
@@ -720,9 +727,8 @@ body::after {
       var(--cyan) 0 3px,
       transparent 3px 7px
     ),
-    var(--bg);
+    var(--sol-card-bg);
   border-color: var(--line-hi);
-  opacity: 0.85;
 }
 .sol-card--dragging {
   opacity: 0.32;

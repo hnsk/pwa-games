@@ -544,6 +544,9 @@ function setMode(): void {
  *  timer + auto loop, redeal, then re-show the (mode-specific) best
  *  and re-arm auto-complete (for the ?solve=1 layout). */
 function resetRound(): void {
+  // ?solve=1 is a one-shot mount demo; any user-initiated reset
+  // (New game / Draw toggle) deals a real game, not the solved board.
+  solveLayout = false;
   stopAuto();
   stopTimer();
   elapsed = 0;
