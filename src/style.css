@@ -43,15 +43,17 @@
     --bg-2: #ebe7dc;
     --surface: rgba(20, 18, 14, 0.035);
     --surface-hi: rgba(20, 18, 14, 0.06);
-    --line: rgba(20, 18, 14, 0.12);
-    --line-hi: rgba(20, 18, 14, 0.32);
+    --line: rgba(20, 18, 14, 0.18);
+    --line-hi: rgba(20, 18, 14, 0.4);
     --ink: #16140f;
     --ink-dim: #565144;
     --ink-faint: #8c8674;
     --cyan: #0a8f89;
     --magenta: #c41862;
-    --glow-cyan: rgba(10, 143, 137, 0.28);
-    --glow-mag: rgba(196, 24, 98, 0.22);
+    /* haze glows are layered at 0.9 opacity; over paper they smear into
+       a garish rainbow band, so the light palette keeps them faint. */
+    --glow-cyan: rgba(10, 143, 137, 0.16);
+    --glow-mag: rgba(196, 24, 98, 0.14);
   }
 }
 
@@ -105,6 +107,19 @@ body::after {
   );
   mix-blend-mode: overlay;
   opacity: 0.5;
+}
+
+/* The atmosphere layers are tuned for the near-black cabinet. On the
+   light "paper" variant the same opacities wash the page out, so dial
+   the haze + scanlines back (dark mode is untouched). */
+@media (prefers-color-scheme: light) {
+  body::before {
+    opacity: 0.5;
+  }
+  body::after {
+    mix-blend-mode: multiply;
+    opacity: 0.22;
+  }
 }
 
 #app {

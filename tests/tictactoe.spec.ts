@@ -66,3 +66,22 @@ test("play a winning line → win + scoreboard + persists @e2e @tictactoe", asyn
     page.locator(".ttt-score__tile").first().locator(".ttt-score__val"),
   ).toHaveText("1"); // score survived reload via GameStorage
 });
+
+// Regression: the plasma haze + scanlines are tuned for the near-black
+// cabinet; at full strength over the light "paper" palette they smeared
+// into a garish rainbow band and washed the board out. The light scheme
+// must dial body::before / body::after back (dark mode stays at 0.9).
+test("light scheme tones down the atmosphere haze @e2e @tictactoe", async ({
+  browser,
+}) => {
+  const ctx = await browser.newContext({ colorScheme: "light" });
+  const page = await ctx.newPage();
+  await page.goto("/#/g/tictactoe");
+  await expect(page.locator(".ttt-grid")).toBeVisible();
+  const haze = await page.evaluate(() => {
+    const cs = getComputedStyle(document.body, "::before");
+    return parseFloat(cs.opacity);
+  });
+  expect(haze).toBeLessThanOrEqual(0.55); // light override active (was 0.9)
+  await ctx.close();
+});
