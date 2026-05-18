@@ -104,15 +104,30 @@ Drop-in game host: router, registry, storage, module contract, menu UI.
 
 ## Epic 5: PWA (installable + offline)
 
-- [ ] Add `vite-plugin-pwa` (Workbox), `registerType: autoUpdate`,
-      precache all hashed build assets.
-- [ ] Manifest: name, short_name, `display: standalone`, theme/
-      background color, icon set.
-- [ ] Generate icons from one source via
+- [x] Add `vite-plugin-pwa` (Workbox), `registerType: autoUpdate`,
+      precache all hashed build assets. (vite-plugin-pwa 1.3.0,
+      verified-latest from npm; generateSW, `globPatterns`
+      `**/*.{js,css,html,svg,png,ico,woff,woff2,webmanifest}` → 21
+      precache entries incl. the code-split `tictactoe-*.js` chunk;
+      `navigateFallback: index.html` for offline hash-route deep links.)
+- [x] Manifest: name, short_name, `display: standalone`, theme/
+      background color, icon set. (theme/bg `#07080d`, portrait,
+      relative `start_url`/`scope` for subpath deploys.)
+- [x] Generate icons from one source via
       `@vite-pwa/assets-generator` into `public/`.
-- [ ] Register SW in `src/main.ts`.
-- [ ] Spec: `tests/pwa.spec.ts @e2e @pwa` — SW registered, manifest
+      (`@vite-pwa/assets-generator` 1.0.2, `minimal2023Preset`,
+      `pwa-assets.config.ts`, source `public/favicon.svg` →
+      pwa-64/192/512, maskable-512, apple-touch-180, favicon.ico;
+      `npm run generate-pwa-assets`.)
+- [x] Register SW in `src/main.ts`. (`registerSW({ immediate: true })`
+      from `virtual:pwa-register`; no-op in dev — `devOptions` off.)
+- [x] Spec: `tests/pwa.spec.ts @e2e @pwa` — SW registered, manifest
       linked, boots offline after first load (network-offline reload).
+      (Targets a new long-lived HTTPS `preview` compose service —
+      `@vitejs/plugin-basic-ssl` 2.3.0, gated by `PWA_HTTPS`; a SW
+      needs a secure context + a real build. Runner uses
+      `ignoreHTTPSErrors` + `--ignore-certificate-errors` for the
+      self-signed cert. Full + CI 12/12 green.)
 
 ## Epic 6: Verification pass
 

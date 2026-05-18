@@ -25,8 +25,24 @@ export default defineConfig({
   use: {
     baseURL: process.env.BASE_URL ?? "http://web:5173",
     trace: "on-first-retry",
+    // The PWA spec targets the HTTPS `preview` service with a
+    // self-signed cert (a SW needs a secure context; an internal
+    // compose hostname can't get a real cert). Accept it so the origin
+    // is still a secure context. Harmless for the HTTP `dev` specs.
+    ignoreHTTPSErrors: true,
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        // `ignoreHTTPSErrors` only covers Playwright-driven requests;
+        // the service worker's own precache fetches bypass it and would
+        // fail the self-signed cert → SW install never completes. This
+        // browser-wide flag makes Chromium (incl. the SW thread) accept
+        // the cert so the PWA actually installs offline.
+        launchOptions: { args: ["--ignore-certificate-errors"] },
+      },
+    },
   ],
 });

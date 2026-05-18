@@ -2,40 +2,43 @@
 
 Resume pointer for a fresh session. Updated at every epic hard-stop.
 
-**Current epic:** Epic 5 — PWA (installable + offline)
-**Next unchecked item:** Add `vite-plugin-pwa` (Workbox),
-`registerType: autoUpdate`, precache all hashed build assets.
+**Current epic:** Epic 6 — Verification pass
+**Next unchecked item:** `dc-run` dev: menu lists tictactoe; play to
+win; score increments; reload → persists.
 
-Notes carried from Epic 4 (tictactoe):
-- Game lives in `src/games/tictactoe/`: `logic.ts` (pure, immutable
-  `move`/`winner`/`winningLine`/`isDraw`), `meta.ts` (`GameMeta`, static
-  import so the menu card renders without the game chunk — keep this
-  split for every future game), `index.ts` (`GameModule` default
-  export, hot-seat X/O, one `AbortController` → `unmount` aborts it).
-- `registry.ts` pattern for a new game: static `import { meta }` +
-  `load: () => import("./<game>/index.ts").then(m => m.default)`. Build
-  confirms code-split (`dist/assets/<game>-*.js` is its own chunk).
-- Scoreboard persisted via `ctx.storage` key `"score"`
-  (`{x,o,d}`); `readScore` tolerates missing/corrupt (→ zeros).
-- CSS: tictactoe styles appended to `src/style.css` under the
-  `tic-tac-toe` block, reusing the neon-cabinet design tokens. No
-  Tailwind, no `frontend-design` skill was needed.
-- Tests: `tests/tictactoe.spec.ts` = 3×`@unit @tictactoe` (pure logic)
-  + 1×`@e2e @tictactoe` (play→win→score→reload-persist). `router.spec`
-  no longer asserts the empty state (registry non-empty now). Every
-  spec still carries one speed tier (`@unit`|`@e2e`) + one area tag.
-- Test/build commands: `tools/scripts/test --full` / `--ci` (11/11
-  green); typecheck+bundle via `tools/scripts/run -- npm run build`
-  (`tsc --noEmit && vite build`). Note `run`'s command goes after `--`.
+Notes carried from Epic 5 (PWA):
+- PWA via `vite-plugin-pwa` 1.3.0 (generateSW, `registerType:
+  autoUpdate`). `vite.config.ts` precaches all hashed assets +
+  `navigateFallback: index.html`; SW registered in `src/main.ts` via
+  `registerSW({ immediate: true })` (`virtual:pwa-register`;
+  `vite-plugin-pwa/client` type ref in `src/vite-env.d.ts`).
+- Icons: one source `public/favicon.svg` →
+  `@vite-pwa/assets-generator` 1.0.2 (`pwa-assets.config.ts`,
+  `minimal2023Preset`), `npm run generate-pwa-assets`, committed under
+  `public/`. Regenerate if the source SVG changes.
+- **A SW needs a secure context + a real build**, so the dev server
+  CANNOT host it. New long-lived `preview` compose service serves the
+  production build over HTTPS (`@vitejs/plugin-basic-ssl` 2.3.0, only
+  when `PWA_HTTPS=1` — set on the `preview` service; dev stays plain
+  HTTP). Alias `web-preview`, host port `PWA_PREVIEW_PORT` (4181).
+  Both `dev` and `preview` now have healthchecks; `test`
+  `depends_on: service_healthy` for both (no per-run race).
+- `tests/pwa.spec.ts @e2e @pwa` targets `https://web-preview:4173`.
+  Self-signed cert → `playwright.config.ts` uses `ignoreHTTPSErrors`
+  AND a `--ignore-certificate-errors` launch arg (the SW's own
+  precache fetches bypass `ignoreHTTPSErrors`; without the flag the SW
+  install never completes). The SW-ready wait MUST be `page.evaluate`
+  (awaits the promise), NOT a `waitForFunction` async predicate (its
+  Promise is always truthy → resolves before the SW controls).
+- Test/build commands unchanged: `tools/scripts/test --full` / `--ci`
+  (now 12/12 green); build via `tools/scripts/run -- npm run build`.
 
-Epic 5 watch-outs:
-- `vite-plugin-pwa` + `@vite-pwa/assets-generator`: pin LATEST stable
-  (verify from npm — latest-stable rule), capture the verify command.
-- Hash routing already in place → SW must serve `index.html` for deep
-  links offline; precache all hashed assets incl. the per-game chunks.
-- New spec `tests/pwa.spec.ts @e2e @pwa`: SW registered, manifest
-  linked, boots offline after first load (network-offline reload).
-  Likely needs `preview` (built+SW) not the dev server.
+Epic 6 watch-outs:
+- It's a verification pass over the PLAN.md checklist — mostly running
+  the existing flows + the last item is README/CLAUDE docs for "adding
+  a game" (folder + registry entry) and the deferred WASM contract.
+- `dc-run preview` for a manual offline check is HTTPS now and on the
+  `web-preview` host port; a browser will warn on the self-signed cert.
 
 Resume steps:
 1. Read `CLAUDE.md` (conventions), `TESTING.md` (test policy,

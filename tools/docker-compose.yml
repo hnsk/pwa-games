@@ -49,6 +49,57 @@ services:
       default:
         aliases: ["web"]
     command: ["sh", "-lc", "npm install && npm run dev"]
+    # Node 24 has global fetch; the dev image has no curl. `test`
+    # waits on this so a run never races an unready Vite server.
+    healthcheck:
+      test:
+        ["CMD", "node", "-e",
+         "fetch('http://localhost:5173/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+
+  # Production-build preview server (Vite `preview` over the real
+  # `dist/`). The PWA is offline-capable ONLY in a build: the service
+  # worker precaches the hashed assets that exist only after
+  # `vite build`. The dev server has none of that, so tests/pwa.spec.ts
+  # MUST run against this service, not `dev`. Long-lived like `dev`
+  # (TESTING.md: supporting services are never per-run-restarted): it
+  # builds once on start, then serves. Reachable on the compose network
+  # at http://web-preview:4173 (non-HSTS alias, same reason as `web`).
+  # Shares the dev image + `node-modules` volume; writes `dist/` into
+  # the repo bind-mount.
+  preview:
+    <<: *dev_image
+    volumes:
+      - "${DEVCTL_ROOT:-..}:/work"
+      - dev-cache:/cache
+      - node-modules:/work/node_modules
+    ports:
+      - "${PWA_PREVIEW_PORT:-4181}:4173"
+    networks:
+      default:
+        aliases: ["web-preview"]
+    # PWA_HTTPS=1 → vite.config includes basic-ssl so `preview` is HTTPS
+    # (a SW needs a secure context; the compose hostname can't get a
+    # real cert). Self-signed → Playwright uses ignoreHTTPSErrors.
+    environment:
+      PWA_HTTPS: "1"
+    command:
+      ["sh", "-lc", "npm install && npm run build && npm run preview"]
+    # npm install + vite build runs before `preview` serves; the long
+    # start_period + retry budget covers a cold build so `test`
+    # (depends_on: service_healthy) only starts once it actually serves.
+    # HTTPS + self-signed → disable TLS verification for the probe only.
+    healthcheck:
+      test:
+        ["CMD", "node", "-e",
+         "process.env.NODE_TLS_REJECT_UNAUTHORIZED='0';fetch('https://localhost:4173/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
 
   # Playwright test runner. NOT the dev image — uses the official
   # Microsoft Playwright image which bakes the browsers + their system
@@ -78,7 +129,10 @@ services:
       - "${DEVCTL_ROOT:-..}:/work"
       - node-modules:/work/node_modules
     depends_on:
-      - dev
+      dev:
+        condition: service_healthy
+      preview:
+        condition: service_healthy
     command: ["sleep", "infinity"]
 
   # Long-lived test DB — uncomment if the project needs one. Per
