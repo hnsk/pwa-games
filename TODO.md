@@ -133,14 +133,19 @@ Drop-in game host: router, registry, storage, module contract, menu UI.
 
 Run the plan's full verification checklist end-to-end and lock CI.
 
-- [ ] `dc-run` dev: menu lists tictactoe; play to win; score
-      increments; reload → persists.
-- [ ] `dc-run` `build` + `preview`: app loads; offline reload still
-      works (SW precache).
-- [ ] `tools/scripts/test --full` green: tictactoe + pwa + logic specs.
-- [ ] `tools/scripts/test --ci` green (fast changed subset).
-- [ ] README/CLAUDE notes for adding a game (folder + registry entry)
-      and the deferred WASM contract.
+- [x] `dc-run` dev: menu lists tictactoe; play to win; score
+      increments; reload → persists. (Covered by `@e2e @tictactoe`
+      "play a winning line → win + scoreboard + persists".)
+- [x] `dc-run` `build` + `preview`: app loads; offline reload still
+      works (SW precache). (Build OK — 21 precache entries, code-split
+      `tictactoe-*.js`; offline reload covered by `@e2e @pwa`.)
+- [x] `tools/scripts/test --full` green: tictactoe + pwa + logic specs.
+      (12/12 green, run 20260518-103340-test.)
+- [x] `tools/scripts/test --ci` green (fast changed subset).
+      (12/12 green, run 20260518-103349-test-ci.)
+- [x] README/CLAUDE notes for adding a game (folder + registry entry)
+      and the deferred WASM contract. (New `README.md` — adding-a-game
+      guide, GameModule contract, deferred-WASM section.)
 
 <!--
 WASM games are deferred (plan §Deferred): no Rust toolchain /
