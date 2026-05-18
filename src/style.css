@@ -35,6 +35,15 @@
   --pad: clamp(1rem, 4vw, 2rem);
   --maxw: 1080px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* klondike: 7 columns must fit the smallest phone; card width scales
+     with the viewport, height follows a playing-card 1.4 ratio. Defined
+     at :root so the drag ghost (rendered on <body>, outside .sol) keeps
+     the same metrics. */
+  --sol-card-w: clamp(2.1rem, 12.6vw, 4.4rem);
+  --sol-card-h: calc(var(--sol-card-w) * 1.4);
+  --sol-gap: clamp(0.18rem, 1.4vw, 0.5rem);
+  --sol-reveal: calc(var(--sol-card-h) * 0.28);
 }
 
 @media (prefers-color-scheme: light) {
@@ -567,6 +576,161 @@ body::after {
 
 @media (prefers-reduced-motion: no-preference) {
   .ttt > * {
+    animation: rise 0.5s var(--ease) both;
+  }
+}
+
+/* ---- klondike solitaire -------------------------------------------- */
+.sol {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.9rem, 3.5vw, 1.4rem);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sol-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.sol-mode {
+  font-size: 0.66rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+.sol-board {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.8rem, 3.5vw, 1.4rem);
+}
+
+.sol-top,
+.sol-tableau {
+  display: grid;
+  grid-template-columns: repeat(7, var(--sol-card-w));
+  gap: var(--sol-gap);
+  justify-content: center;
+}
+
+.sol-slot {
+  width: var(--sol-card-w);
+  height: var(--sol-card-h);
+  border-radius: clamp(4px, 1.6vw, 8px);
+  border: 1px dashed var(--line);
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+.sol-spacer {
+  width: var(--sol-card-w);
+}
+.sol-foundation__hint {
+  font-size: calc(var(--sol-card-w) * 0.5);
+  color: var(--ink-faint);
+  opacity: 0.5;
+}
+.sol-stock {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.sol-stock__recycle {
+  font-size: calc(var(--sol-card-w) * 0.5);
+  color: var(--ink-dim);
+}
+.sol-waste {
+  border-style: solid;
+  border-color: transparent;
+  background: transparent;
+  overflow: visible;
+  justify-items: start;
+}
+.sol-waste .sol-card {
+  position: absolute;
+  top: 0;
+  left: calc(var(--fan, 0) * var(--sol-card-w) * 0.32);
+}
+
+.sol-col {
+  position: relative;
+  min-height: var(--sol-card-h);
+}
+.sol-col__empty {
+  display: block;
+  width: var(--sol-card-w);
+  height: var(--sol-card-h);
+  border: 1px dashed var(--line);
+  border-radius: clamp(4px, 1.6vw, 8px);
+  background: var(--surface);
+}
+.sol-col .sol-card + .sol-card {
+  margin-top: calc(-1 * (var(--sol-card-h) - var(--sol-reveal)));
+}
+
+.sol-card {
+  position: relative;
+  width: var(--sol-card-w);
+  height: var(--sol-card-h);
+  border-radius: clamp(4px, 1.6vw, 8px);
+  background: var(--bg-2);
+  border: 1px solid var(--line-hi);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  line-height: 1;
+  touch-action: none; /* suppress scroll while dragging on touch */
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.sol-card--red {
+  color: var(--magenta);
+}
+.sol-card__corner {
+  position: absolute;
+  top: 0.15rem;
+  left: 0.22rem;
+  font-size: calc(var(--sol-card-w) * 0.3);
+  letter-spacing: -0.04em;
+}
+.sol-card__pip {
+  font-size: calc(var(--sol-card-w) * 0.52);
+  opacity: 0.92;
+}
+.sol-card--back {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      var(--cyan) 0 3px,
+      transparent 3px 7px
+    ),
+    var(--bg);
+  border-color: var(--line-hi);
+  opacity: 0.85;
+}
+.sol-card--dragging {
+  opacity: 0.32;
+}
+
+/* the lifted run that follows the pointer */
+.sol-ghost {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
+}
+.sol-ghost .sol-card {
+  display: block;
+}
+.sol-ghost .sol-card + .sol-card {
+  margin-top: calc(-1 * (var(--sol-card-h) - var(--sol-reveal)));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sol > * {
     animation: rise 0.5s var(--ease) both;
   }
 }

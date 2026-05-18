@@ -1,0 +1,472 @@
+// Klondike GameModule (plan §UI). The shell hands us a cleared `#app`
+// and a namespaced storage; we own all state + DOM. Pure rules live in
+// logic.ts — this file is render + input only. Every listener goes
+// through ONE AbortController so unmount() is a single abort (no leaked
+// pointer handlers across navigations).
+//
+// Epic 8 scope: board render, pointer drag-and-drop (mouse + touch),
+// double-tap → foundation, stock draw/recycle, New game / Draw-mode
+// toggle / Back, deterministic `?seed=` hook. Timer, best-time and
+// auto-complete are Epic 9 and are intentionally NOT wired here.
+
+import { createHeader } from "../../ui/header.ts";
+import {
+  applyMove,
+  deal,
+  foundationTargetFor,
+  isMovableRun,
+  makeDeck,
+  mulberry32,
+  shuffle,
+  SUITS,
+  topOf,
+  type Card,
+  type GameState,
+  type Move,
+  type Suit,
+} from "./logic.ts";
+import { meta } from "./meta.ts";
+import type { GameContext, GameModule } from "../types.ts";
+
+const SUIT_GLYPH: Record<Suit, string> = {
+  S: "♠", // ♠
+  H: "♥", // ♥
+  D: "♦", // ♦
+  C: "♣", // ♣
+};
+
+function rankLabel(rank: number): string {
+  if (rank === 1) return "A";
+  if (rank === 11) return "J";
+  if (rank === 12) return "Q";
+  if (rank === 13) return "K";
+  return String(rank);
+}
+
+/** Optional deterministic seed from the route (`#/g/klondike?seed=42`),
+ *  so E2E (Epic 9) can reach a repeatable deal. Absent → time-seeded. */
+function parseSeed(): number | null {
+  const m = /[?&]seed=(-?\d+)/.exec(location.hash);
+  return m ? Number(m[1]) >>> 0 : null;
+}
+
+// Module-scope state: only one game mounts at a time and unmount()
+// abandons it, so mount() reinitialises everything below.
+let state: GameState;
+let seed: number | null = null;
+let drawCount: 1 | 3 = 3;
+let controller: AbortController | null = null;
+
+let boardEl: HTMLElement;
+let modeEl: HTMLElement;
+
+interface DragSource {
+  pile: "waste" | "tableau";
+  col: number; // tableau column (ignored for waste)
+  index: number; // start index of the run within its pile
+}
+
+interface Drag {
+  source: DragSource;
+  run: Card[];
+  startX: number;
+  startY: number;
+  offX: number;
+  offY: number;
+  started: boolean;
+  ghost: HTMLElement | null;
+}
+
+let drag: Drag | null = null;
+
+function freshDeal(): void {
+  const s = seed ?? ((Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0);
+  state = deal(shuffle(makeDeck(), mulberry32(s)), drawCount);
+}
+
+// ---- DOM builders ---------------------------------------------------
+
+function buildCard(card: Card): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "sol-card";
+  el.dataset.id = card.id;
+  el.dataset.suit = card.suit;
+  el.dataset.rank = String(card.rank);
+  el.dataset.faceup = String(card.faceUp);
+  if (!card.faceUp) {
+    el.classList.add("sol-card--back");
+    return el;
+  }
+  if (card.suit === "H" || card.suit === "D") {
+    el.classList.add("sol-card--red");
+  }
+  const corner = document.createElement("span");
+  corner.className = "sol-card__corner";
+  corner.textContent = rankLabel(card.rank) + SUIT_GLYPH[card.suit];
+  const pip = document.createElement("span");
+  pip.className = "sol-card__pip";
+  pip.textContent = SUIT_GLYPH[card.suit];
+  el.append(corner, pip);
+  return el;
+}
+
+function buildSlot(cls: string): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "sol-slot " + cls;
+  return el;
+}
+
+function render(): void {
+  boardEl.replaceChildren();
+
+  // top row: 4 foundations · spacer · stock · waste
+  const top = document.createElement("div");
+  top.className = "sol-top";
+
+  for (const suit of SUITS) {
+    const f = buildSlot("sol-foundation");
+    f.dataset.pile = "foundation";
+    f.dataset.suit = suit;
+    const pile = state.foundations[suit];
+    const t = topOf(pile);
+    if (t) {
+      f.appendChild(buildCard(t));
+    } else {
+      const ghost = document.createElement("span");
+      ghost.className = "sol-foundation__hint";
+      ghost.textContent = SUIT_GLYPH[suit];
+      f.appendChild(ghost);
+    }
+    top.appendChild(f);
+  }
+
+  const spacer = document.createElement("div");
+  spacer.className = "sol-spacer";
+  top.appendChild(spacer);
+
+  const stock = buildSlot("sol-stock");
+  stock.dataset.pile = "stock";
+  stock.dataset.action = "stock";
+  if (state.stock.length) {
+    const back = buildCard({
+      id: "stock",
+      suit: "S",
+      rank: 0,
+      faceUp: false,
+    });
+    stock.appendChild(back);
+  } else {
+    const recycle = document.createElement("span");
+    recycle.className = "sol-stock__recycle";
+    recycle.textContent = "↻"; // ↻
+    stock.appendChild(recycle);
+  }
+  top.appendChild(stock);
+
+  const waste = buildSlot("sol-waste");
+  waste.dataset.pile = "waste";
+  // Fan the last up-to-3 so draw-3 reads correctly; only the last is
+  // interactive (it is the logical top).
+  const shown = state.waste.slice(-3);
+  shown.forEach((card, i) => {
+    const c = buildCard(card);
+    c.style.setProperty("--fan", String(i));
+    if (i === shown.length - 1) c.dataset.top = "true";
+    waste.appendChild(c);
+  });
+  top.appendChild(waste);
+
+  boardEl.appendChild(top);
+
+  // tableau: 7 columns
+  const tab = document.createElement("div");
+  tab.className = "sol-tableau";
+  state.tableau.forEach((pile, col) => {
+    const c = document.createElement("div");
+    c.className = "sol-col";
+    c.dataset.pile = "tableau";
+    c.dataset.col = String(col);
+    if (pile.length === 0) {
+      const empty = document.createElement("span");
+      empty.className = "sol-col__empty";
+      c.appendChild(empty);
+    } else {
+      pile.forEach((card, idx) => {
+        const node = buildCard(card);
+        node.dataset.idx = String(idx);
+        c.appendChild(node);
+      });
+    }
+    tab.appendChild(c);
+  });
+  boardEl.appendChild(tab);
+}
+
+// ---- moves ----------------------------------------------------------
+
+function commit(move: Move): boolean {
+  const next = applyMove(state, move);
+  if (!next) return false;
+  state = next;
+  render();
+  return true;
+}
+
+/** Locate a face-up card in waste/tableau and the run it heads. */
+function locateCard(cardEl: HTMLElement): {
+  source: DragSource;
+  run: Card[];
+} | null {
+  if (cardEl.dataset.faceup !== "true") return null;
+  const id = cardEl.dataset.id!;
+
+  const wIdx = state.waste.findIndex((c) => c.id === id);
+  if (wIdx !== -1) {
+    if (wIdx !== state.waste.length - 1) return null; // only waste top
+    return {
+      source: { pile: "waste", col: -1, index: wIdx },
+      run: [state.waste[wIdx]],
+    };
+  }
+
+  for (let col = 0; col < state.tableau.length; col++) {
+    const pile = state.tableau[col];
+    const idx = pile.findIndex((c) => c.id === id);
+    if (idx === -1) continue;
+    const run = pile.slice(idx);
+    if (!isMovableRun(run)) return null;
+    return { source: { pile: "tableau", col, index: idx }, run };
+  }
+  return null;
+}
+
+function moveFromTo(source: DragSource, run: Card[], target: HTMLElement): void {
+  const pile = target.dataset.pile;
+  if (pile === "foundation") {
+    if (run.length !== 1) return; // foundations take a single card
+    const suit = target.dataset.suit as Suit;
+    commit(
+      source.pile === "waste"
+        ? { type: "wasteToFoundation", suit }
+        : { type: "tableauToFoundation", from: source.col, suit },
+    );
+    return;
+  }
+  if (pile === "tableau") {
+    const to = Number(target.dataset.col);
+    commit(
+      source.pile === "waste"
+        ? { type: "wasteToTableau", to }
+        : {
+            type: "tableauToTableau",
+            from: source.col,
+            index: source.index,
+            to,
+          },
+    );
+  }
+}
+
+/** Double-tap/click a face-up waste/tableau-top card → its foundation. */
+function sendToFoundation(cardEl: HTMLElement): void {
+  const loc = locateCard(cardEl);
+  if (!loc || loc.run.length !== 1) return;
+  const card = loc.run[0];
+  const suit = foundationTargetFor(state, card);
+  if (!suit) return;
+  commit(
+    loc.source.pile === "waste"
+      ? { type: "wasteToFoundation", suit }
+      : { type: "tableauToFoundation", from: loc.source.col, suit },
+  );
+}
+
+// ---- drag (pointer: mouse + touch) ----------------------------------
+
+function onPointerDown(e: PointerEvent): void {
+  const t = e.target as HTMLElement;
+  const cardEl = t.closest<HTMLElement>(".sol-card");
+  if (!cardEl || cardEl.classList.contains("sol-card--back")) return;
+  const loc = locateCard(cardEl);
+  if (!loc) return;
+
+  const rect = cardEl.getBoundingClientRect();
+  drag = {
+    source: loc.source,
+    run: loc.run,
+    startX: e.clientX,
+    startY: e.clientY,
+    offX: e.clientX - rect.left,
+    offY: e.clientY - rect.top,
+    started: false,
+    ghost: null,
+  };
+}
+
+function startGhost(): void {
+  if (!drag) return;
+  const ghost = document.createElement("div");
+  ghost.className = "sol-ghost";
+  drag.run.forEach((card) => ghost.appendChild(buildCard(card)));
+  document.body.appendChild(ghost);
+  drag.ghost = ghost;
+  drag.started = true;
+
+  // Dim the lifted run in place so the ghost reads as picked up.
+  for (const card of drag.run) {
+    boardEl
+      .querySelector<HTMLElement>(`.sol-card[data-id="${card.id}"]`)
+      ?.classList.add("sol-card--dragging");
+  }
+}
+
+function onPointerMove(e: PointerEvent): void {
+  if (!drag) return;
+  if (!drag.started) {
+    const dist = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY);
+    if (dist < 6) return;
+    startGhost();
+  }
+  if (drag.ghost) {
+    drag.ghost.style.left = `${e.clientX - drag.offX}px`;
+    drag.ghost.style.top = `${e.clientY - drag.offY}px`;
+  }
+}
+
+function onPointerUp(e: PointerEvent): void {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  if (!d.started) return; // a tap, not a drag — dblclick handles it
+
+  d.ghost?.remove();
+  const under = document.elementFromPoint(e.clientX, e.clientY) as
+    | HTMLElement
+    | null;
+  const target = under?.closest<HTMLElement>(
+    ".sol-foundation, .sol-col, .sol-waste",
+  );
+  if (target && target.dataset.pile !== "waste") {
+    moveFromTo(d.source, d.run, target);
+  }
+  render(); // also restores the dimmed run if the move was illegal
+}
+
+// ---- clicks ---------------------------------------------------------
+
+function onClick(e: PointerEvent | MouseEvent): void {
+  const t = e.target as HTMLElement;
+  if (t.closest('[data-action="stock"]')) {
+    commit(state.stock.length ? { type: "draw" } : { type: "recycle" });
+  }
+}
+
+function onDblClick(e: MouseEvent): void {
+  const cardEl = (e.target as HTMLElement).closest<HTMLElement>(".sol-card");
+  if (cardEl && cardEl.dataset.faceup === "true") sendToFoundation(cardEl);
+}
+
+// ---- chrome ---------------------------------------------------------
+
+function setMode(): void {
+  modeEl.textContent = `Draw ${drawCount}`;
+}
+
+function newGame(): void {
+  freshDeal();
+  render();
+}
+
+function toggleDraw(): void {
+  drawCount = drawCount === 3 ? 1 : 3;
+  setMode();
+  freshDeal();
+  render();
+}
+
+function button(
+  text: string,
+  cls: string,
+  onClick: () => void,
+  signal: AbortSignal,
+): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = cls;
+  b.textContent = text;
+  b.addEventListener("click", onClick, { signal });
+  return b;
+}
+
+const klondike: GameModule = {
+  meta,
+
+  mount(el: HTMLElement, ctx: GameContext): void {
+    seed = parseSeed();
+    drawCount = 3;
+    freshDeal();
+    controller = new AbortController();
+    const { signal } = controller;
+
+    el.replaceChildren();
+    el.appendChild(createHeader());
+
+    const main = document.createElement("main");
+    main.className = "shell-main sol";
+
+    const lead = document.createElement("div");
+    lead.className = "menu__lead";
+    const kicker = document.createElement("p");
+    kicker.className = "menu__kicker";
+    kicker.textContent = "Solitaire";
+    const head = document.createElement("h2");
+    head.className = "menu__head";
+    head.textContent = meta.title;
+    lead.append(kicker, head);
+
+    const bar = document.createElement("div");
+    bar.className = "sol-bar";
+    modeEl = document.createElement("span");
+    modeEl.className = "sol-mode";
+    bar.appendChild(modeEl);
+    setMode();
+
+    boardEl = document.createElement("div");
+    boardEl.className = "sol-board";
+
+    const controls = document.createElement("div");
+    controls.className = "ttt-controls";
+    controls.append(
+      button("New game", "ttt-btn", newGame, signal),
+      button("Draw 3 / 1", "ttt-btn", toggleDraw, signal),
+      button(
+        "Back to menu",
+        "ttt-btn ttt-btn--ghost",
+        () => ctx.onExit(),
+        signal,
+      ),
+    );
+
+    main.append(lead, bar, boardEl, controls);
+    el.appendChild(main);
+
+    // Delegated input — one set of listeners for the whole board, all
+    // bound to the single AbortSignal.
+    boardEl.addEventListener("pointerdown", onPointerDown, { signal });
+    window.addEventListener("pointermove", onPointerMove, { signal });
+    window.addEventListener("pointerup", onPointerUp, { signal });
+    boardEl.addEventListener("click", onClick, { signal });
+    boardEl.addEventListener("dblclick", onDblClick, { signal });
+
+    render();
+  },
+
+  unmount(): void {
+    controller?.abort();
+    controller = null;
+    drag?.ghost?.remove();
+    drag = null;
+  },
+};
+
+export default klondike;

@@ -19,7 +19,9 @@ interface Route {
 }
 
 function parse(hash: string): Route {
-  const m = /^#\/g\/([^/]+)\/?$/.exec(hash);
+  // Tolerate a trailing `?query` (e.g. `#/g/klondike?seed=42`): the id is
+  // only the slug; games read their own params from `location.hash`.
+  const m = /^#\/g\/([^/?]+)\/?(?:\?.*)?$/.exec(hash);
   if (m) return { kind: "game", id: decodeURIComponent(m[1]) };
   return { kind: "menu" };
 }
