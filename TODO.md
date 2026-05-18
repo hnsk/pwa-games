@@ -170,17 +170,27 @@ Second game. Pure, immutable rules module (no DOM/storage) so the
 
 ## Epic 8: Klondike UI, drag, draw modes, registry, styling
 
-- [ ] `src/games/klondike/index.ts` `GameModule`: DOM board (CSS
+- [x] `src/games/klondike/index.ts` `GameModule`: DOM board (CSS
       glyph cards, stable `data-*` selectors), pointer drag-and-drop
       (mouse+touch) for tableau/waste/foundation, double-tap →
       foundation, stock draw/recycle, New game / Draw-mode toggle
       (default 3) / Back. One `AbortController`; deterministic
-      `#/g/klondike?seed=<n>` hook.
-- [ ] Register klondike in `src/games/registry.ts` (code-splits).
-- [ ] `src/style.css`: `.sol-*` neon-system styling, mobile-first,
-      responsive 7 columns, drag ghost.
-- [ ] `dc-up` / `dc-run` build green (separate `klondike-*.js`
+      `#/g/klondike?seed=<n>` hook. (Delegated listeners on the board;
+      6px drag threshold so a tap still reaches `dblclick`; ghost on
+      `<body>`. `router.ts` `parse()` widened to tolerate a trailing
+      `?query` — the regex previously folded it into the id so the
+      documented seeded route never resolved.)
+- [x] Register klondike in `src/games/registry.ts` (code-splits).
+      (Static `meta` + lazy `import("./klondike/index.ts")` →
+      separate `klondike-*.js`.)
+- [x] `src/style.css`: `.sol-*` neon-system styling, mobile-first,
+      responsive 7 columns, drag ghost. (Card metrics live on `:root`
+      so the body-level ghost keeps the same size.)
+- [x] `dc-up` / `dc-run` build green (separate `klondike-*.js`
       chunk, menu lists the game); commit; update `TODO.md`+`NEXT.md`.
+      (Build OK — `klondike-Cazmy8_S.js` 8.45 kB, precache 21→22;
+      full+unit 24/24 green, run 20260518-110733-test. `router.spec`
+      game-card count 1→2.)
 
 ## Epic 9: Timer, best time, auto-complete + E2E + verification
 
