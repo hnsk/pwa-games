@@ -147,6 +147,57 @@ Run the plan's full verification checklist end-to-end and lock CI.
       and the deferred WASM contract. (New `README.md` — adding-a-game
       guide, GameModule contract, deferred-WASM section.)
 
+## Epic 7: Klondike model + pure logic
+
+Second game. Pure, immutable rules module (no DOM/storage) so the
+`@unit` tier exercises the whole engine with zero browser.
+
+- [x] `src/games/klondike/meta.ts` + `logic.ts`: types
+      (`Suit`/`Card`/`GameState`), `makeDeck`, `mulberry32` +
+      seeded `shuffle`, `deal` (tableau 1..7, last face-up, stock 24),
+      `canStackTableau`/`canStackFoundation`, `isMovableRun`,
+      `applyMove` (draw / recycle / waste→tab / waste→found /
+      tab→tab run / tab→found, auto-flip newly exposed top),
+      `foundationTargetFor`, `isWon`, `canAutoComplete`, `autoStep`.
+      (Pure/immutable; `id` = `${suit}${rank}` for stable selectors.)
+- [x] `tests/klondike.spec.ts` `@unit @klondike`: 52-unique deck;
+      seeded `shuffle` deterministic + permutation; `deal` shape;
+      stacking truth-tables; `applyMove` waste→foundation + tableau
+      run move + auto-flip; `autoStep` solves a no-face-down state to
+      `isWon`; `canAutoComplete` boundary. (9 cases.)
+- [x] `dc-test --unit` green; commit; update `TODO.md`+`NEXT.md`.
+      (16/16 green, run 20260518-110124-test-unit.)
+
+## Epic 8: Klondike UI, drag, draw modes, registry, styling
+
+- [ ] `src/games/klondike/index.ts` `GameModule`: DOM board (CSS
+      glyph cards, stable `data-*` selectors), pointer drag-and-drop
+      (mouse+touch) for tableau/waste/foundation, double-tap →
+      foundation, stock draw/recycle, New game / Draw-mode toggle
+      (default 3) / Back. One `AbortController`; deterministic
+      `#/g/klondike?seed=<n>` hook.
+- [ ] Register klondike in `src/games/registry.ts` (code-splits).
+- [ ] `src/style.css`: `.sol-*` neon-system styling, mobile-first,
+      responsive 7 columns, drag ghost.
+- [ ] `dc-up` / `dc-run` build green (separate `klondike-*.js`
+      chunk, menu lists the game); commit; update `TODO.md`+`NEXT.md`.
+
+## Epic 9: Timer, best time, auto-complete + E2E + verification
+
+- [ ] Timer (`M:SS`, starts on first move, stops on win/unmount);
+      per-mode best time persisted (`best-1`/`best-3` via
+      `ctx.storage`), shown + updated on win.
+- [ ] Auto-complete: auto-run `autoStep` loop when `canAutoComplete`
+      (no per-card clicking) + manual button fallback; interval
+      cleared on unmount/new game.
+- [ ] `tests/klondike.spec.ts` `@e2e @klondike`: board renders;
+      stock click → waste grows by draw count; draw-mode toggle
+      changes count; double-tap an Ace → foundation; timer
+      increments; seeded deal → auto-complete finishes → win → best
+      time persists across reload; New game resets.
+- [ ] `dc-test --full` + `--ci` green; commit; update
+      `TODO.md`+`NEXT.md`.
+
 <!--
 WASM games are deferred (plan §Deferred): no Rust toolchain /
 vite-plugin-wasm now. The GameModule contract already supports async

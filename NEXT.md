@@ -2,22 +2,28 @@
 
 Resume pointer for a fresh session. Updated at every epic hard-stop.
 
-**Current epic:** Epic 6 — Verification pass ✅ DONE
-**Next unchecked item:** none — all 6 epics in `TODO.md` complete.
+**Current epic:** Epic 7 — Klondike model + pure logic ✅ DONE
+**Next epic:** Epic 8 — Klondike UI, drag, draw modes, registry, styling
+**Next unchecked item:** `src/games/klondike/index.ts` `GameModule`
+(DOM glyph board, pointer drag-and-drop, double-tap → foundation,
+stock draw/recycle, New game / Draw-mode toggle / Back, `?seed=` hook).
 
-State at completion:
-- Build green: 21 SW precache entries, code-split `tictactoe-*.js`.
-- `tools/scripts/test --full` 12/12 green (run 20260518-103340-test).
-- `tools/scripts/test --ci` 12/12 green (run 20260518-103349-test-ci).
-- `README.md` added: adding-a-game guide (folder + registry entry),
-  GameModule contract, deferred-WASM section.
+State at completion (Epic 7):
+- `src/games/klondike/{meta,logic}.ts` — pure immutable engine.
+- `tests/klondike.spec.ts` — 9 `@unit @klondike` cases.
+- `dc-test --unit` 16/16 green (run 20260518-110124-test-unit).
 
-No further epics queued. Next work is user-directed — likely a second
-game, or the deferred WASM epic (Rust toolchain + `vite-plugin-wasm`;
-contract already supports async `mount`, no shell change needed).
+Context:
+- Second game = Klondike Solitaire. Plan:
+  `~/.claude/plans/implement-the-classic-windows-polished-dijkstra.md`.
+- Decisions: CSS/DOM glyph cards; pointer drag-and-drop +
+  double-tap → foundation; draw-3 default with draw-1 toggle;
+  per-mode persisted best time; auto-complete when no face-down
+  card remains.
 
-When starting new work:
-1. Read `CLAUDE.md`, `TESTING.md`, `TODO.md` (add a new epic there
-   first — it stays the authoritative source).
-2. All code tagged + tested from day one (`TESTING.md`).
-3. Hard stop after each epic: commit → update `TODO.md` + this file.
+When starting / resuming work:
+1. Read `CLAUDE.md`, `TESTING.md`, `TODO.md`, this file, the plan.
+2. All code tagged + tested from day one (`TESTING.md`):
+   `@unit|@e2e` + `@klondike`.
+3. Hard stop after each epic: commit → update `TODO.md` + this file
+   → end the turn, wait for the user.
