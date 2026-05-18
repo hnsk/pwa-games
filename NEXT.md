@@ -2,33 +2,40 @@
 
 Resume pointer for a fresh session. Updated at every epic hard-stop.
 
-**Current epic:** Epic 4 — tictactoe (first game)
-**Next unchecked item:** `src/games/tictactoe/logic.ts` — pure `move` /
-`winner` / `isDraw`, no DOM.
+**Current epic:** Epic 5 — PWA (installable + offline)
+**Next unchecked item:** Add `vite-plugin-pwa` (Workbox),
+`registerType: autoUpdate`, precache all hashed build assets.
 
-Notes carried from Epic 3 (host shell):
-- Contract: `src/games/types.ts` — `GameMeta` / `GameContext` /
-  `GameModule` (`mount` may return a Promise; `unmount` frees
-  listeners/RAF/wasm). `GameStorage` interface also lives there.
-- `src/lib/storage.ts` `createGameStorage(id)`: keys
-  `pwa-games:<id>:<key>`, JSON; corrupt/missing → `null` (no throw).
-- `src/games/registry.ts`: `registry: GameEntry[]` where
-  `GameEntry = { meta, load: () => Promise<GameModule> }` so games
-  code-split. **It is currently empty** — register tictactoe here
-  (Epic 4 item: `{ meta, load: () => import("./tictactoe/index.ts")
-  .then(m => m.default) }`). Menu renders from `meta` alone.
-- `src/router.ts` `startRouter({ app, renderMenu })`: `#/`→menu,
-  `#/g/<id>`→game; nav-token guard for async `mount`; unknown id and
-  `ctx.onExit` → `#/`. Wired in `src/main.ts`.
-- UI: `src/ui/header.ts` + `src/ui/menu.ts`, plain-CSS design system in
-  `src/style.css` (Tailwind NOT wired — PLAN mentions it but no TODO
-  item adds it; revisit only if a game needs it). Safe DOM nodes only.
-- Tests: `@unit` fast tier is now NON-EMPTY (`tests/storage.spec.ts`
-  via a Node `localStorage` polyfill — true pure-logic, no browser
-  nav). So `--ci`/`--changed` `@unit` subset is real. `tests/
-  router.spec.ts` = `@e2e @router`. Epic 4 adds `@unit @tictactoe`
-  (logic.ts) + `@e2e @tictactoe` (play→win→persist).
-- Every spec MUST carry one speed tier (`@unit`|`@e2e`) + one area tag.
+Notes carried from Epic 4 (tictactoe):
+- Game lives in `src/games/tictactoe/`: `logic.ts` (pure, immutable
+  `move`/`winner`/`winningLine`/`isDraw`), `meta.ts` (`GameMeta`, static
+  import so the menu card renders without the game chunk — keep this
+  split for every future game), `index.ts` (`GameModule` default
+  export, hot-seat X/O, one `AbortController` → `unmount` aborts it).
+- `registry.ts` pattern for a new game: static `import { meta }` +
+  `load: () => import("./<game>/index.ts").then(m => m.default)`. Build
+  confirms code-split (`dist/assets/<game>-*.js` is its own chunk).
+- Scoreboard persisted via `ctx.storage` key `"score"`
+  (`{x,o,d}`); `readScore` tolerates missing/corrupt (→ zeros).
+- CSS: tictactoe styles appended to `src/style.css` under the
+  `tic-tac-toe` block, reusing the neon-cabinet design tokens. No
+  Tailwind, no `frontend-design` skill was needed.
+- Tests: `tests/tictactoe.spec.ts` = 3×`@unit @tictactoe` (pure logic)
+  + 1×`@e2e @tictactoe` (play→win→score→reload-persist). `router.spec`
+  no longer asserts the empty state (registry non-empty now). Every
+  spec still carries one speed tier (`@unit`|`@e2e`) + one area tag.
+- Test/build commands: `tools/scripts/test --full` / `--ci` (11/11
+  green); typecheck+bundle via `tools/scripts/run -- npm run build`
+  (`tsc --noEmit && vite build`). Note `run`'s command goes after `--`.
+
+Epic 5 watch-outs:
+- `vite-plugin-pwa` + `@vite-pwa/assets-generator`: pin LATEST stable
+  (verify from npm — latest-stable rule), capture the verify command.
+- Hash routing already in place → SW must serve `index.html` for deep
+  links offline; precache all hashed assets incl. the per-game chunks.
+- New spec `tests/pwa.spec.ts @e2e @pwa`: SW registered, manifest
+  linked, boots offline after first load (network-offline reload).
+  Likely needs `preview` (built+SW) not the dev server.
 
 Resume steps:
 1. Read `CLAUDE.md` (conventions), `TESTING.md` (test policy,

@@ -82,16 +82,25 @@ Drop-in game host: router, registry, storage, module contract, menu UI.
 
 ## Epic 4: tictactoe (first game)
 
-- [ ] `src/games/tictactoe/logic.ts` — pure `move` / `winner` /
-      `isDraw`, no DOM.
-- [ ] `src/games/tictactoe/index.ts` — `GameModule`: DOM 3×3 grid,
+- [x] `src/games/tictactoe/logic.ts` — pure `move` / `winner` /
+      `isDraw`, no DOM. (+`winningLine` for UI highlight; immutable —
+      `move` returns a new board, rejects out-of-range/taken/decided.)
+- [x] `src/games/tictactoe/index.ts` — `GameModule`: DOM 3×3 grid,
       mobile-first large tap targets, responsive square board.
-- [ ] Local X/O/draw scoreboard via `GameStorage`; reset button; back
-      to menu via `ctx.onExit`. UI via `frontend-design` skill.
-- [ ] Register tictactoe in `registry.ts`.
-- [ ] Specs: `@unit @tictactoe` (win/draw cases on `logic.ts`),
+      (`aspect-ratio:1/1`; one `AbortController` → unmount = single
+      abort; `meta.ts` split so the menu card loads without the game
+      chunk — verified: separate `tictactoe-*.js`.)
+- [x] Local X/O/draw scoreboard via `GameStorage`; reset button; back
+      to menu via `ctx.onExit`. (Hot-seat X vs O; New-round +
+      Reset-scores + Back controls; plain-CSS, no frontend-design skill
+      needed — extended the existing neon design system.)
+- [x] Register tictactoe in `registry.ts`. (Static `meta` import +
+      lazy `import("./tictactoe/index.ts")` so it code-splits.)
+- [x] Specs: `@unit @tictactoe` (win/draw cases on `logic.ts`),
       `@e2e @tictactoe` (play winning line → win state + scoreboard
-      increment + persists across reload).
+      increment + persists across reload). (`tests/tictactoe.spec.ts`,
+      4 cases. `router.spec` updated: menu now renders a game card, not
+      the empty state. Full + CI 11/11 green.)
 
 ## Epic 5: PWA (installable + offline)
 
