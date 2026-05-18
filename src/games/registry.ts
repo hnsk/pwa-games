@@ -6,6 +6,7 @@
 import type { GameMeta, GameModule } from "./types.ts";
 import { meta as tictactoeMeta } from "./tictactoe/meta.ts";
 import { meta as klondikeMeta } from "./klondike/meta.ts";
+import { meta as sudokuMeta } from "./sudoku/meta.ts";
 
 export interface GameEntry {
   meta: GameMeta;
@@ -23,6 +24,10 @@ export const registry: GameEntry[] = [
   {
     meta: klondikeMeta,
     load: () => import("./klondike/index.ts").then((m) => m.default),
+  },
+  {
+    meta: sudokuMeta,
+    load: () => import("./sudoku/index.ts").then((m) => m.default),
   },
 ];
 

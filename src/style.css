@@ -1046,3 +1046,290 @@ body::after {
     transform: translateY(-10px) scale(0.98);
   }
 }
+
+/* ===========================================================================
+   Sudoku — "engraved slate"
+   Built only from the shell design tokens (--ink, --accent, --surface,
+   --line, …). A few component-local vars (--sdk-*) are scoped under .sdk
+   for the correctness colours; no new GLOBAL tokens and no edits to the
+   shell / .ttt-* / .sol-* rules, so the @tictactoe light-scheme and the
+   visual-regression specs stay untouched. Mobile-first: the 9-wide grid
+   is a square that fits the smallest phone.
+   ========================================================================= */
+.sdk {
+  /* a single warm-red for the optional mistake check + a stronger amber
+     for hints — local, not global (mirrors .sol's scoped tokens). */
+  --sdk-wrong: #d61f1f;
+  --sdk-box: var(--line-hi);
+
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.9rem, 3.5vw, 1.4rem);
+  user-select: none;
+  -webkit-user-select: none;
+}
+:root[data-theme="light"] .sdk {
+  --sdk-wrong: #c41616;
+}
+
+.sdk-title {
+  margin: 0;
+  font-size: clamp(1rem, 4.4vw, 1.5rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+/* ---- HUD: difficulty / timer / hints ------------------------------- */
+.sdk-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.sdk-diff,
+.sdk-timer,
+.sdk-hints {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5ch;
+  padding: 0.42rem 0.8rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.sdk-diff::before {
+  content: "▦";
+  color: var(--accent);
+  letter-spacing: 0;
+}
+.sdk-timer {
+  color: var(--ink);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  border-color: var(--line-hi);
+}
+.sdk-timer::before {
+  content: "◷";
+  color: var(--accent);
+  font-size: 0.9em;
+  letter-spacing: 0;
+}
+.sdk-hints::before {
+  content: "✦";
+  color: var(--accent);
+  letter-spacing: 0;
+}
+.sdk-status {
+  margin-left: auto;
+  align-self: center;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.sdk-status:empty {
+  display: none;
+}
+
+/* ---- the board ----------------------------------------------------- */
+.sdk-board {
+  position: relative;
+  align-self: center;
+  width: 100%;
+  /* the 9-wide grid is square; cap it so desktop doesn't balloon, and
+     it always fits the narrowest phone (100% of the padded column). */
+  max-width: min(30rem, 92vw);
+}
+.sdk-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  grid-template-rows: repeat(9, 1fr);
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  background: var(--surface);
+  border: 2px solid var(--sdk-box);
+  border-radius: var(--rad);
+  overflow: hidden;
+}
+
+.sdk-cell {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: clamp(0.9rem, 4.6vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--accent); /* user-entered digits */
+  background: transparent;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 0.15s var(--ease),
+    color 0.15s var(--ease);
+}
+/* thicker 3×3 box separators (skip the outermost — the grid frame
+   already draws those). */
+.sdk-cell:nth-child(3n):not(:nth-child(9n)) {
+  border-right: 2px solid var(--sdk-box);
+}
+.sdk-cell:nth-child(n + 19):nth-child(-n + 27),
+.sdk-cell:nth-child(n + 46):nth-child(-n + 54) {
+  border-top: 2px solid var(--sdk-box);
+}
+
+.sdk-cell[data-given="true"] {
+  color: var(--ink); /* clues: calm ink, distinct from user amber */
+  font-weight: 700;
+  cursor: default;
+}
+.sdk-cell[data-hint="true"] {
+  color: var(--accent-2); /* third style: deeper amber, italic */
+  font-style: italic;
+}
+.sdk-cell[data-same="true"] {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.sdk-cell[data-sel="true"] {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.sdk-cell[data-conflict="true"] {
+  outline: 2px solid var(--sdk-wrong);
+  outline-offset: -2px;
+}
+.sdk-cell[data-wrong="true"] {
+  color: var(--sdk-wrong);
+}
+.sdk-cell:not([data-given="true"]):hover {
+  background: var(--surface-hi);
+}
+
+/* pencil marks: a 3×3 mini-grid inside an empty cell */
+.sdk-notes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  width: 100%;
+  height: 100%;
+  font-size: clamp(0.42rem, 1.9vw, 0.62rem);
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+.sdk-notes span {
+  display: grid;
+  place-items: center;
+}
+
+/* ---- number pad ---------------------------------------------------- */
+.sdk-pad {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: clamp(0.35rem, 1.8vw, 0.6rem);
+  width: 100%;
+  max-width: min(30rem, 92vw);
+  margin-inline: auto;
+}
+.sdk-key {
+  min-height: 2.9rem;
+  font-family: var(--mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--surface-hi);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--rad);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 0.2s var(--ease),
+    border-color 0.2s var(--ease),
+    transform 0.12s var(--ease);
+}
+.sdk-key:hover:not(:disabled),
+.sdk-key:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+.sdk-key:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.sdk-key:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.sdk-key:disabled,
+.sdk-key[data-full="true"] {
+  color: var(--ink-faint);
+  background: var(--surface);
+  border-color: var(--line);
+  cursor: default;
+}
+.sdk-key--erase {
+  font-size: 1rem;
+}
+
+/* a toggled control (Notes/Check on) reads as armed */
+.ttt-btn[data-on="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---- win banner ---------------------------------------------------- */
+.sdk-win {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: var(--rad);
+  text-align: center;
+  background:
+    radial-gradient(
+      80% 60% at 50% 40%,
+      color-mix(in srgb, var(--accent) 22%, transparent),
+      transparent 70%
+    ),
+    color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.sdk-board[data-won="true"] .sdk-win {
+  display: flex;
+  animation: sol-win-in 0.55s var(--ease) both;
+}
+.sdk-win__title {
+  margin: 0;
+  font-size: clamp(2rem, 11vw, 3.4rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+.sdk-win__sub {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sdk > * {
+    animation: rise 0.5s var(--ease) both;
+  }
+}

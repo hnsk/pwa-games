@@ -219,6 +219,44 @@ Second game. Pure, immutable rules module (no DOM/storage) so the
       30/30 run 20260518-113004-test-ci; build green —
       klondike-Co5zMur8.js 10.63 kB, precache 22.)
 
+## Epic 10: Sudoku (third game)
+
+Plan: `~/.claude/plans/abstract-watching-avalanche.md`. Mirrors the
+Klondike split (pure engine + GameModule), real technique-rated
+difficulty, no shell/visual-regression regression.
+
+- [x] `src/games/sudoku/logic.ts` — pure engine: PEERS/UNITS, copied
+      `mulberry32`, `fullSolve`, `countSolutions` (MRV, abort at
+      limit), candidate `Model`, graded technique ladder
+      (naked/hidden single, locked candidates, naked/hidden pair,
+      naked/hidden triple, X-Wing), `rate`/`classify`, runtime
+      `generate` (seeded dig + technique-rate, attempt/wall-clock
+      budget, fallback labelled with the *measured* difficulty),
+      `conflicts`/`isComplete`/`firstForcedCell`.
+- [x] `src/games/sudoku/meta.ts` + registry 3rd entry (static meta +
+      lazy `import("./sudoku/index.ts")` → separate `sudoku-*.js`).
+- [x] `src/games/sudoku/index.ts` `GameModule`: 9×9 render + number
+      pad, tap + full keyboard input, notes mode, optional mistake
+      check (off by default, persisted via `pref`), always-on conflict
+      outline, per-3×3-box hint (max 9, forced cell when possible),
+      digit-complete key greying, digit highlight, play timer (M:SS),
+      win banner, `Saved` localStorage resume, difficulty-cycle redeal,
+      `?seed=`/`?diff=`/`?solve=1` test hooks. One `AbortController`.
+- [x] `src/style.css`: appended `.sdk-*` block (shell tokens only +
+      component-local `--sdk-*`; no edits to shell/`.ttt-*`/`.sol-*`).
+- [x] `tests/sudoku.spec.ts` — `@unit @sudoku` (engine: solve,
+      determinism, technique truth-tables, generate invariants,
+      boundary) + `@e2e @sudoku` (render, place vs given, highlight,
+      notes, mistake-check toggle, box-scoped hint, `?solve=1` win +
+      key grey + timer stop, save/resume + New game). `router.spec`
+      game-card count 2→3.
+- [x] `dc-test --unit/--full/--ci` green; build green (separate
+      `sudoku-ByVR50YI.js` 13.03 kB, precache 22→23); two-theme +
+      320px screenshot sweep verified given/user/hint/same/conflict/
+      selected all distinguishable. (full 49/49 run
+      20260518-155746-test; ci run 20260518-155801-test-ci.) Commit;
+      update `TODO.md`+`NEXT.md`.
+
 <!--
 WASM games are deferred (plan §Deferred): no Rust toolchain /
 vite-plugin-wasm now. The GameModule contract already supports async
