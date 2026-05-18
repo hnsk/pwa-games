@@ -23,3 +23,6 @@ playwright-report/
 
 # Claude Code per-session runtime state (recreated on launch).
 .claude/scheduled_tasks.lock
+
+# Machine-local permission allowlist (per-clone, not shared).
+.claude/settings.local.json
